@@ -1,6 +1,33 @@
 <?php
 // Public read-only dashboard. The trading control API remains disabled in kfxai/.env.
+// config.php(kfreqaiと共通・同ディレクトリ)があればブログAPIトークン等を利用する。
+if (file_exists(__DIR__ . '/config.php')) { require_once __DIR__ . '/config.php'; }
 $api_base = defined('KFXAI_API_BASE') ? KFXAI_API_BASE : 'http://exbridge.ddns.net:18324';
+
+function kfxai_h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
+
+// Kurageブログ(Bludit共用)からtag=kfxaiの記事だけを新しい順に返す。
+function kfxai_latest_blog_posts($limit = 5) {
+    if (!defined('KFREQAI_BLOG_BASE') || !defined('KFREQAI_BLOG_API_TOKEN')) { return array(); }
+    $ch = curl_init(rtrim(KFREQAI_BLOG_BASE, '/') . '/api/pages?number=40&token=' . urlencode(KFREQAI_BLOG_API_TOKEN));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    $res = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($res === false || $code >= 400) { return array(); }
+    $data = json_decode($res, true);
+    $pages = isset($data['data']) ? $data['data'] : array();
+    $mine = array();
+    foreach ($pages as $p) {
+        $tags = isset($p['tags']) ? (string) $p['tags'] : '';
+        if (strpos($tags, 'kfxai') === false) { continue; }
+        $mine[] = $p;
+        if (count($mine) >= $limit) { break; }
+    }
+    return $mine;
+}
 
 function kfxai_get_json($url) {
     $ch = curl_init($url);
@@ -88,6 +115,14 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
   .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; min-width: 0; }
   .panel h3 { margin: 0 0 12px; font-size: 14px; }
+  .blog-links { list-style: none; padding: 0; margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .blog-links li { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .blog-links li:last-child { border-bottom: none; }
+  .blog-links a { color: var(--indigo); text-decoration: none; font-size: 14px; }
+  .blog-links a:hover { text-decoration: underline; }
+  .blog-date { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .blog-more { font-size: 13px; margin-top: 10px; }
+  .blog-more a { color: var(--cyan); text-decoration: none; font-weight: 700; }
   .statusline { display: flex; gap: 11px; align-items: flex-start; }
   .dot { width: 11px; height: 11px; flex: none; margin-top: 5px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 5px rgba(27,175,122,.14); }
   .dot.bad { background: var(--down); box-shadow: 0 0 0 5px rgba(214,69,61,.14); }
@@ -176,6 +211,23 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
         <thead><tr><th>ID</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
         <tbody id="trades"><tr><td colspan="8">読み込み中</td></tr></tbody>
       </table></div>
+    </section>
+
+    <section>
+      <h2>最新記事（Kurage 暗号資産/FX AI 自動取引日記）</h2>
+      <?php $kfxai_blog_posts = kfxai_latest_blog_posts(5); ?>
+      <?php if (empty($kfxai_blog_posts)): ?>
+        <p class="blog-more">記事の取得に失敗したか、まだ記事がありません。
+          <a href="https://kurage.exbridge.jp/blog/tag/kfxai">ブログで見る →</a></p>
+      <?php else: ?>
+      <ul class="blog-links">
+        <?php foreach ($kfxai_blog_posts as $p): ?>
+        <li><a href="<?php echo kfxai_h(isset($p['permalink']) ? $p['permalink'] : '#'); ?>"><?php echo kfxai_h(isset($p['title']) ? $p['title'] : '(無題)'); ?></a>
+          <span class="blog-date"><?php echo kfxai_h(isset($p['date']) ? $p['date'] : ''); ?></span></li>
+        <?php endforeach; ?>
+      </ul>
+      <p class="blog-more"><a href="https://kurage.exbridge.jp/blog/tag/kfxai">kfxaiの記事一覧を見る →</a></p>
+      <?php endif; ?>
     </section>
 
     <footer>
