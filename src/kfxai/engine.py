@@ -10,6 +10,7 @@ from .judgment import JudgmentBackend, build_backend
 from .models import Candle, Price, Signal, utc_now_iso
 from .oanda import OandaClient
 from .predictor import DirectionModel
+from .strategies import build_strategies
 from .strategy_session import session_should_close, session_signal
 
 
@@ -59,6 +60,11 @@ class TradingEngine:
         self.client = client or OandaClient(settings)
         self.db = database or Database(settings.database_path)
         self.judgment = judgment or build_backend(settings)
+        # 戦略アリーナ(KFXAI_STRATEGY=arena): 複数戦略を並走させ戦略別台帳で競わせる
+        self.arena = build_strategies(settings) if settings.strategy == "arena" else []
+        self._arena_by_name = {s.name: s for s in self.arena}
+        if self.arena:
+            print(f"[arena] strategies: {[s.name for s in self.arena]}")
 
     def _fetch_market(self) -> tuple[dict[str, list[Candle]], dict[str, Price], list[str]]:
         candle_map: dict[str, list[Candle]] = {}
@@ -200,8 +206,18 @@ class TradingEngine:
                 # 監視リストから外れた銘柄の孤児ポジション(旧戦略の遺物)は即時手仕舞い
                 reason = "orphaned"
             if not reason:
-                if self.settings.strategy == "session":
-                    # セッション戦略は時刻で手仕舞い(21:00 UTC以降/翌日のレンジ形成中)
+                strategy = self._arena_by_name.get(trade.get("strategy") or "")
+                if strategy is not None:
+                    # アリーナ: 各戦略の手仕舞いルール(時刻 or 保有時間上限)
+                    if strategy.close_on_session_end and session_should_close(
+                            datetime.now(timezone.utc), self.settings):
+                        reason = "session_close"
+                    elif strategy.max_hold_minutes is not None:
+                        held_min = (trade["bars_held"] + 1) * self.settings.cycle_seconds / 60
+                        if held_min >= strategy.max_hold_minutes:
+                            reason = "max_hold"
+                elif self.settings.strategy in ("session", "arena"):
+                    # セッション戦略(単独モード) or アリーナのロースター外の遺物
                     if session_should_close(datetime.now(timezone.utc), self.settings):
                         reason = "session_close"
                 elif trade["bars_held"] + 1 >= self.settings.max_hold_candles:
@@ -219,8 +235,10 @@ class TradingEngine:
         return events
 
     def _risk_allows(
-        self, signal: Signal, price: Price | None, current_positions: set[str], open_count: int,
+        self, signal: Signal, price: Price | None, position_taken: bool, open_count: int,
     ) -> tuple[bool, str]:
+        """position_taken/open_countは単独モードでは銘柄集合と全体数、
+        アリーナでは(戦略,銘柄)キーの有無と戦略ごとの建玉数を渡す。"""
         if signal.action == "hold":
             return False, "no entry signal"
         if not market_is_open():
@@ -229,7 +247,7 @@ class TradingEngine:
             return False, "instrument is not tradeable"
         if price.spread_pips > self.settings.max_spread_pips:
             return False, f"spread {price.spread_pips:.2f} pips exceeds limit"
-        if signal.instrument in current_positions:
+        if position_taken:
             return False, "position already exists"
         if open_count >= self.settings.max_positions:
             return False, "max positions reached"
@@ -264,10 +282,48 @@ class TradingEngine:
                 }
             open_count = len(open_instruments)
             actions: list[dict[str, Any]] = []
-            for instrument, signal in self._signals(candle_map, regime, directive).items():
+            # エントリー候補を作る。単独モード=銘柄ごと1信号、アリーナ=戦略×銘柄。
+            now_utc = datetime.now(timezone.utc)
+            today = now_utc.strftime("%Y-%m-%d")
+            if self.arena:
+                open_rows = self.db.open_paper_trades() if self.settings.trading_mode == "paper" else []
+                open_keys = {(t.get("strategy") or "session", t["instrument"]) for t in open_rows}
+                strat_counts: dict[str, int] = {}
+                for key, _inst in open_keys:
+                    strat_counts[key] = strat_counts.get(key, 0) + 1
+                entries: list[tuple[Any, Signal]] = []
+                for strat in self.arena:
+                    for instrument in candle_map:
+                        already = (strat.name, instrument) in open_keys
+                        daily_key = (f"session_traded:{instrument}" if strat.name == "session"
+                                     else f"traded:{strat.name}:{instrument}")
+                        if strat.daily_limit and self.db.get_state(daily_key) == today:
+                            signal = Signal(
+                                instrument=instrument, action="hold", probability_up=0.5,
+                                confidence=0.0, regime="arena",
+                                directive=str(directive.get("directive", "neutral")),
+                                reason="already traded today", model=strat.name, features={})
+                        else:
+                            signal = strat.signal(instrument, candle_map[instrument],
+                                                  self.settings, now_utc, already)
+                        if signal.action != "hold" and directive.get("directive") == "risk_off":
+                            signal = Signal(**{**signal.__dict__, "action": "hold",
+                                               "reason": "risk directive blocks new exposure"})
+                        entries.append((strat, signal))
+            else:
+                entries = [(None, s) for s in self._signals(candle_map, regime, directive).values()]
+
+            for strat, signal in entries:
+                instrument = signal.instrument
                 price = prices.get(instrument)
                 decision_id = self.db.record_decision(signal, price.spread_pips if price else None)
-                allowed, gate_reason = self._risk_allows(signal, price, open_instruments, open_count)
+                if strat is not None:
+                    position_taken = (strat.name, instrument) in open_keys
+                    slot_count = strat_counts.get(strat.name, 0)
+                else:
+                    position_taken = instrument in open_instruments
+                    slot_count = open_count
+                allowed, gate_reason = self._risk_allows(signal, price, position_taken, slot_count)
                 action = {"decision_id": decision_id, **signal.to_dict(), "gate": gate_reason}
                 if allowed and price:
                     side = "long" if signal.action == "buy" else "short"
@@ -279,24 +335,31 @@ class TradingEngine:
                         stop, take = price_targets(
                             price, side, self.settings.stop_loss_pips, self.settings.take_profit_pips
                         )
+                    strategy_name = strat.name if strat is not None else self.settings.strategy
                     if self.settings.trading_mode == "paper":
                         entry = price.ask if side == "long" else price.bid
                         reference = str(self.db.open_paper_trade(
-                            instrument, side, abs(signed_units), entry, stop, take
+                            instrument, side, abs(signed_units), entry, stop, take,
+                            strategy=strategy_name,
                         ))
                     else:
                         response = self.client.market_order(instrument, signed_units, stop, take)
                         transaction = response.get("orderFillTransaction") or response.get("orderCreateTransaction") or {}
                         reference = str(transaction.get("id", "unknown"))
                     self.db.mark_executed(decision_id, self.settings.trading_mode, reference)
-                    if self.settings.strategy == "session":
-                        self.db.set_state(
-                            f"session_traded:{instrument}",
-                            datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                        )
+                    daily_limited = (strat.daily_limit if strat is not None
+                                     else self.settings.strategy == "session")
+                    if daily_limited:
+                        daily_key = (f"session_traded:{instrument}" if strategy_name == "session"
+                                     else f"traded:{strategy_name}:{instrument}")
+                        self.db.set_state(daily_key, today)
                     action.update({"executed": True, "reference": reference, "stop": stop, "take": take})
-                    open_instruments.add(instrument)
-                    open_count += 1
+                    if strat is not None:
+                        open_keys.add((strat.name, instrument))
+                        strat_counts[strat.name] = strat_counts.get(strat.name, 0) + 1
+                    else:
+                        open_instruments.add(instrument)
+                        open_count += 1
                 else:
                     action["executed"] = False
                 actions.append(action)

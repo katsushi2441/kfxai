@@ -68,6 +68,15 @@ def status() -> dict[str, Any]:
         "last_error": db.get_state("last_error", {}),
         "performance": performance,
         "max_positions": settings.max_positions,
+        "strategy_mode": settings.strategy,
+        "strategy_performance": db.query(
+            "SELECT strategy, "
+            "SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) AS trades, "
+            "SUM(CASE WHEN status='closed' AND pnl_jpy > 0 THEN 1 ELSE 0 END) AS wins, "
+            "ROUND(SUM(CASE WHEN status='closed' THEN pnl_jpy ELSE 0 END), 0) AS pnl_jpy, "
+            "SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS open_now "
+            "FROM paper_trades GROUP BY strategy ORDER BY pnl_jpy DESC"
+        ),
         "open_trades": [trade for trade in trades if trade["status"] == "open"],
         "recent_trades": trades,
         "recent_decisions": decisions,

@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     pnl_jpy REAL,
     exit_reason TEXT,
     bars_held INTEGER NOT NULL DEFAULT 0,
-    reviewed INTEGER NOT NULL DEFAULT 0
+    reviewed INTEGER NOT NULL DEFAULT 0,
+    strategy TEXT NOT NULL DEFAULT 'session'
 );
 CREATE TABLE IF NOT EXISTS journal (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,6 +94,12 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            # 既存DBの移行: strategy列(戦略アリーナ用)が無ければ追加
+            cols = {row["name"] for row in conn.execute("PRAGMA table_info(paper_trades)")}
+            if "strategy" not in cols:
+                conn.execute(
+                    "ALTER TABLE paper_trades ADD COLUMN strategy TEXT NOT NULL DEFAULT 'session'"
+                )
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -169,13 +176,13 @@ class Database:
 
     def open_paper_trade(
         self, instrument: str, side: str, units: int, price: float,
-        stop_price: float, take_price: float,
+        stop_price: float, take_price: float, strategy: str = "session",
     ) -> int:
         with self.connect() as conn:
             cur = conn.execute(
                 "INSERT INTO paper_trades(instrument,side,units,open_time,open_price,stop_price,"
-                "take_price) VALUES(?,?,?,?,?,?,?)",
-                (instrument, side, units, utc_now_iso(), price, stop_price, take_price),
+                "take_price,strategy) VALUES(?,?,?,?,?,?,?,?)",
+                (instrument, side, units, utc_now_iso(), price, stop_price, take_price, strategy),
             )
             return int(cur.lastrowid)
 

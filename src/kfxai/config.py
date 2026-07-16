@@ -82,8 +82,8 @@ class Settings:
             raise ValueError("base_units and max_positions must be positive")
         if not 0.5 < self.signal_threshold < 1:
             raise ValueError("signal_threshold must be between 0.5 and 1")
-        if self.strategy not in {"direction", "session"}:
-            raise ValueError("KFXAI_STRATEGY must be direction or session")
+        if self.strategy not in {"direction", "session", "arena"}:
+            raise ValueError("KFXAI_STRATEGY must be direction, session, or arena")
 
 
 def load_settings(config_path: str | Path | None = None) -> Settings:

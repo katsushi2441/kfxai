@@ -207,10 +207,18 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
     </section>
 
     <section>
+      <h2>戦略別成績（アリーナ）</h2>
+      <div class="tscroll"><table>
+        <thead><tr><th>戦略</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>建玉中</th></tr></thead>
+        <tbody id="leaderboard"><tr><td colspan="5">読み込み中</td></tr></tbody>
+      </table></div>
+    </section>
+
+    <section>
       <h2>paper取引台帳</h2>
       <div class="tscroll"><table>
-        <thead><tr><th>ID</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建玉日時(JST)</th><th>決済日時(JST)</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
-        <tbody id="trades"><tr><td colspan="10">読み込み中</td></tr></tbody>
+        <thead><tr><th>ID</th><th>戦略</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建玉日時(JST)</th><th>決済日時(JST)</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
+        <tbody id="trades"><tr><td colspan="11">読み込み中</td></tr></tbody>
       </table></div>
     </section>
 
@@ -270,7 +278,8 @@ async function refresh(){
     document.querySelector('#record').textContent=`${p.closed_trades||0} trades / ${((p.win_rate||0)*100).toFixed(1)}% win`;
     document.querySelector('#recordDetail').textContent=`wins ${p.wins||0} / 累計損益 ${yen.format(p.pnl_jpy||0)}`;
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
-    document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="10">paper取引はまだありません。</td></tr>';
+    document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.strategy||'-')}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="11">paper取引はまだありません。</td></tr>';
+    document.querySelector('#leaderboard').innerHTML=(d.strategy_performance||[]).map(x=>{const wr=x.trades?Math.round(100*x.wins/x.trades):null;return `<tr><td>${esc(x.strategy)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${x.open_now||0}</td></tr>`;}).join('')||'<tr><td colspan="5">まだ取引がありません。</td></tr>';
     const err=d.last_error?.error;box.style.display=err?'block':'none';box.textContent=err?`last error: ${err}`:'';
   }catch(error){
     document.querySelector('#systemState').textContent='OFFLINE';
