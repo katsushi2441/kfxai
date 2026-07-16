@@ -208,8 +208,8 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
     <section>
       <h2>paper取引台帳</h2>
       <div class="tscroll"><table>
-        <thead><tr><th>ID</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
-        <tbody id="trades"><tr><td colspan="8">読み込み中</td></tr></tbody>
+        <thead><tr><th>ID</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建玉日時(JST)</th><th>決済日時(JST)</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
+        <tbody id="trades"><tr><td colspan="10">読み込み中</td></tr></tbody>
       </table></div>
     </section>
 
@@ -238,7 +238,8 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
 <script>
 const yen=new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const time=v=>v?new Date(v).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'-';
+// 表示は閲覧環境に関わらず常に日本時間(JST)
+const time=v=>v?new Date(v).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'-';
 const pnlClass=n=>Number(n)>0?'up':(Number(n)<0?'down':'');
 async function refresh(){
   const box=document.querySelector('#errorBox');
@@ -265,7 +266,7 @@ async function refresh(){
     document.querySelector('#record').textContent=`${p.closed_trades||0} trades / ${((p.win_rate||0)*100).toFixed(1)}% win`;
     document.querySelector('#recordDetail').textContent=`wins ${p.wins||0} / 累計損益 ${yen.format(p.pnl_jpy||0)}`;
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
-    document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="8">paper取引はまだありません。</td></tr>';
+    document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="10">paper取引はまだありません。</td></tr>';
     const err=d.last_error?.error;box.style.display=err?'block':'none';box.textContent=err?`last error: ${err}`:'';
   }catch(error){
     document.querySelector('#systemState').textContent='OFFLINE';
