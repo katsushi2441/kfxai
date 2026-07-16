@@ -108,6 +108,11 @@ def main() -> int:
     ap.add_argument("--file", required=True, help="本文markdownファイル")
     args = ap.parse_args()
 
+    if not os.path.isfile(args.file):
+        print(f"エラー: 本文ファイルが見つかりません: {args.file}")
+        print("先に記事本文をmarkdownで書いて、--file にそのパスを渡してください。")
+        print('例: python3 scripts/post_blog.py --title "初取引の結果" --slug first-trades --file /tmp/article.md')
+        return 1
     with open(args.file, encoding="utf-8") as f:
         body = f.read().strip()
     body += DISCLOSURE_FOOTER
