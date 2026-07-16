@@ -77,7 +77,11 @@ class TradingEngine:
             except Exception as exc:
                 errors.append(f"{instrument}: candles: {exc}")
         try:
-            prices = self.client.prices(tuple(candle_map)) if candle_map else {}
+            # 監視リスト外でも建玉が残っている銘柄(リスト変更後の孤児)の価格を含めて取る。
+            # これが無いと孤児ポジションの決済処理が永遠にスキップされる。
+            open_instruments = {t["instrument"] for t in self.db.open_paper_trades()}
+            wanted = tuple(dict.fromkeys(list(candle_map) + sorted(open_instruments)))
+            prices = self.client.prices(wanted) if wanted else {}
         except Exception as exc:
             prices = {}
             errors.append(f"pricing: {exc}")
@@ -192,6 +196,9 @@ class TradingEngine:
                     reason = "stop_loss"
                 elif current <= trade["take_price"]:
                     reason = "take_profit"
+            if not reason and trade["instrument"] not in self.settings.instruments:
+                # 監視リストから外れた銘柄の孤児ポジション(旧戦略の遺物)は即時手仕舞い
+                reason = "orphaned"
             if not reason:
                 if self.settings.strategy == "session":
                     # セッション戦略は時刻で手仕舞い(21:00 UTC以降/翌日のレンジ形成中)
