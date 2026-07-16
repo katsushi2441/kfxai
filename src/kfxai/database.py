@@ -203,11 +203,23 @@ class Database:
                 (utc_now_iso(), close_price, pnl_jpy, exit_reason, trade_id),
             )
 
-    def today_pnl_jpy(self) -> float:
+    def today_pnl_jpy(self, strategy: str | None = None) -> float:
+        sql = ("SELECT COALESCE(SUM(pnl_jpy),0) AS pnl FROM paper_trades "
+               "WHERE status='closed' AND date(close_time)=date('now')")
+        params: tuple = ()
+        if strategy is not None:
+            sql += " AND strategy=?"
+            params = (strategy,)
+        with self.connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+        return float(row["pnl"])
+
+    def cum_pnl_jpy(self, strategy: str) -> float:
+        """エージェント(戦略)の累計確定損益。予算に対する残高・DD停止判定に使う。"""
         with self.connect() as conn:
             row = conn.execute(
                 "SELECT COALESCE(SUM(pnl_jpy),0) AS pnl FROM paper_trades "
-                "WHERE status='closed' AND date(close_time)=date('now')"
+                "WHERE status='closed' AND strategy=?", (strategy,)
             ).fetchone()
         return float(row["pnl"])
 

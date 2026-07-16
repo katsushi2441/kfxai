@@ -51,6 +51,11 @@ class Settings:
     session_tp_mult: float = 1.5      # TP=レンジ幅×この倍率
     session_max_sl_pips: float = 40.0  # レンジ(=SL幅)がこれ超の日は見送り
     session_min_range_pips: float = 10.0  # レンジ幅下限
+    # アリーナの戦略実行エージェント: 各自に枠(max_positions)と仮想予算を割り当て、
+    # 予算比の成績で評価する。DD上限超過で新規停止(建玉の決済は継続)。
+    agent_budget_jpy: float = 300000.0
+    agent_max_drawdown_pct: float = 10.0  # 予算比。既定: 30万×10%=3万円負けたら停止
+    agent_daily_loss_jpy: float = 3000.0  # エージェント別の日次損失上限
 
     @property
     def api_base_url(self) -> str:
@@ -125,6 +130,9 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         session_tp_mult=float(os.getenv("KFXAI_SESSION_TP_MULT", "1.5")),
         session_max_sl_pips=float(os.getenv("KFXAI_SESSION_MAX_SL_PIPS", "40")),
         session_min_range_pips=float(os.getenv("KFXAI_SESSION_MIN_RANGE_PIPS", "10")),
+        agent_budget_jpy=float(os.getenv("KFXAI_AGENT_BUDGET_JPY", "300000")),
+        agent_max_drawdown_pct=float(os.getenv("KFXAI_AGENT_MAX_DRAWDOWN_PCT", "10")),
+        agent_daily_loss_jpy=float(os.getenv("KFXAI_AGENT_DAILY_LOSS_JPY", "3000")),
     )
     if config_path:
         payload = json.loads(Path(config_path).read_text(encoding="utf-8"))

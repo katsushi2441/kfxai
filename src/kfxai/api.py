@@ -48,6 +48,29 @@ def health(probe_oanda: bool = Query(default=False)) -> dict[str, Any]:
     return result
 
 
+def _agent_performance() -> list[dict[str, Any]]:
+    """戦略実行エージェント別の評価: 予算・残高・収益率・状態(active/suspended)。"""
+    rows = db.query(
+        "SELECT strategy, "
+        "SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) AS trades, "
+        "SUM(CASE WHEN status='closed' AND pnl_jpy > 0 THEN 1 ELSE 0 END) AS wins, "
+        "ROUND(SUM(CASE WHEN status='closed' THEN pnl_jpy ELSE 0 END), 0) AS pnl_jpy, "
+        "SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS open_now, "
+        "ROUND(SUM(CASE WHEN status='closed' AND date(close_time)=date('now') "
+        "THEN pnl_jpy ELSE 0 END), 0) AS today_pnl "
+        "FROM paper_trades GROUP BY strategy ORDER BY pnl_jpy DESC"
+    )
+    budget = settings.agent_budget_jpy
+    dd_limit = budget * settings.agent_max_drawdown_pct / 100
+    for row in rows:
+        pnl = float(row["pnl_jpy"] or 0)
+        row["budget_jpy"] = budget
+        row["equity_jpy"] = round(budget + pnl)
+        row["return_pct"] = round(100 * pnl / budget, 3) if budget else 0
+        row["status"] = "suspended" if pnl <= -dd_limit else "active"
+    return rows
+
+
 @app.get("/api/status")
 def status() -> dict[str, Any]:
     trades = db.query("SELECT * FROM paper_trades ORDER BY id DESC LIMIT 100")
@@ -69,14 +92,8 @@ def status() -> dict[str, Any]:
         "performance": performance,
         "max_positions": settings.max_positions,
         "strategy_mode": settings.strategy,
-        "strategy_performance": db.query(
-            "SELECT strategy, "
-            "SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) AS trades, "
-            "SUM(CASE WHEN status='closed' AND pnl_jpy > 0 THEN 1 ELSE 0 END) AS wins, "
-            "ROUND(SUM(CASE WHEN status='closed' THEN pnl_jpy ELSE 0 END), 0) AS pnl_jpy, "
-            "SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS open_now "
-            "FROM paper_trades GROUP BY strategy ORDER BY pnl_jpy DESC"
-        ),
+        "agent_budget_jpy": settings.agent_budget_jpy,
+        "strategy_performance": _agent_performance(),
         "open_trades": [trade for trade in trades if trade["status"] == "open"],
         "recent_trades": trades,
         "recent_decisions": decisions,

@@ -236,9 +236,10 @@ class TradingEngine:
 
     def _risk_allows(
         self, signal: Signal, price: Price | None, position_taken: bool, open_count: int,
+        daily_pnl: float, daily_loss_limit: float,
     ) -> tuple[bool, str]:
-        """position_taken/open_countは単独モードでは銘柄集合と全体数、
-        アリーナでは(戦略,銘柄)キーの有無と戦略ごとの建玉数を渡す。"""
+        """position_taken/open_count/daily_pnlは、単独モードでは全体の値、
+        アリーナではエージェント(戦略)ごとの値を渡す。"""
         if signal.action == "hold":
             return False, "no entry signal"
         if not market_is_open():
@@ -251,7 +252,7 @@ class TradingEngine:
             return False, "position already exists"
         if open_count >= self.settings.max_positions:
             return False, "max positions reached"
-        if self.db.today_pnl_jpy() <= -self.settings.max_daily_loss_jpy:
+        if daily_pnl <= -daily_loss_limit:
             return False, "daily loss limit reached"
         return True, "allowed"
 
@@ -291,9 +292,28 @@ class TradingEngine:
                 strat_counts: dict[str, int] = {}
                 for key, _inst in open_keys:
                     strat_counts[key] = strat_counts.get(key, 0) + 1
+                # エージェント別の予算状態(残高・DD停止・本日損益)を先に評価
+                dd_limit = self.settings.agent_budget_jpy * self.settings.agent_max_drawdown_pct / 100
+                agent_state: dict[str, dict[str, float | bool]] = {}
+                for strat in self.arena:
+                    cum = self.db.cum_pnl_jpy(strat.name)
+                    agent_state[strat.name] = {
+                        "cum_pnl": cum,
+                        "today_pnl": self.db.today_pnl_jpy(strat.name),
+                        "suspended": cum <= -dd_limit,
+                    }
                 entries: list[tuple[Any, Signal]] = []
                 for strat in self.arena:
+                    state = agent_state[strat.name]
                     for instrument in candle_map:
+                        if state["suspended"]:
+                            entries.append((strat, Signal(
+                                instrument=instrument, action="hold", probability_up=0.5,
+                                confidence=0.0, regime="arena",
+                                directive=str(directive.get("directive", "neutral")),
+                                reason=f"agent suspended: drawdown over {self.settings.agent_max_drawdown_pct:.0f}% of budget",
+                                model=strat.name, features={})))
+                            continue
                         already = (strat.name, instrument) in open_keys
                         daily_key = (f"session_traded:{instrument}" if strat.name == "session"
                                      else f"traded:{strat.name}:{instrument}")
@@ -320,10 +340,15 @@ class TradingEngine:
                 if strat is not None:
                     position_taken = (strat.name, instrument) in open_keys
                     slot_count = strat_counts.get(strat.name, 0)
+                    daily_pnl = float(agent_state[strat.name]["today_pnl"])
+                    daily_loss_limit = self.settings.agent_daily_loss_jpy
                 else:
                     position_taken = instrument in open_instruments
                     slot_count = open_count
-                allowed, gate_reason = self._risk_allows(signal, price, position_taken, slot_count)
+                    daily_pnl = self.db.today_pnl_jpy()
+                    daily_loss_limit = self.settings.max_daily_loss_jpy
+                allowed, gate_reason = self._risk_allows(
+                    signal, price, position_taken, slot_count, daily_pnl, daily_loss_limit)
                 action = {"decision_id": decision_id, **signal.to_dict(), "gate": gate_reason}
                 if allowed and price:
                     side = "long" if signal.action == "buy" else "short"
