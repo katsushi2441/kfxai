@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kurage FX AI Trade — An FX bot that killed its own prediction model, in public</title>
+<meta name="description" content="kfxai is an FX paper-trading bot run by Kurage, an AI VTuber. We measured direction prediction across ~10,000 trades, proved it had no edge, threw it away — and trade the session-breakout strategy that survived 1.6 years of walk-forward testing.">
+<link rel="canonical" href="https://kfxai.exbridge.jp/">
+<link rel="alternate" hreflang="ja" href="https://kfxai.exbridge.jp/kfxai.html">
+<meta property="og:title" content="Kurage FX AI Trade — FX paper trading, measured in public">
+<meta property="og:description" content="Direction prediction: tested on ~10,000 trades, no edge, rejected. Session breakout: 1.6 years walk-forward, positive on every parameter, live on paper. Every number published.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kfxai.exbridge.jp/">
+<meta property="og:site_name" content="Kurage FX AI Trade">
+<meta property="og:image" content="https://kfxai.exbridge.jp/assets/kurage_avatar.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kfxai.exbridge.jp/assets/kurage_avatar.png">
+<style>
+:root {
+  --ink: #1a2c4d; --muted: #67799a; --sea: #6b9ae8; --line: #d4e0f6;
+  --accent: #3b6fd4; --accent2: #2c56b0; --soft: #eef3fd;
+  --paper: rgba(255,255,255,.92); --up: #1baf7a; --down: #d6453d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  background:
+    radial-gradient(1300px 500px at 15% -8%, rgba(107,154,232,.16), transparent 55%),
+    radial-gradient(900px 400px at 92% 5%, rgba(146,182,250,.13), transparent 50%),
+    linear-gradient(160deg, #fff 0%, #edf3ff 50%, #f5f9ff 100%);
+  min-height: 100vh; line-height: 1.7; overflow-x: hidden;
+}
+a { text-decoration: none; color: inherit; }
+img { max-width: 100%; }
+header {
+  position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.86);
+  backdrop-filter: blur(16px); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: flex-start; padding: 10px 24px; gap: 12px;
+}
+.hbrand { font-weight: 900; font-size: 16px; }
+.hbrand sub { font-size: 11px; font-weight: 700; color: var(--muted); display: block; margin-top: -2px; }
+.hnav { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.btn { border-radius: 999px; padding: 9px 16px; font-weight: 900; font-size: 13px; display: inline-flex; align-items: center; gap: 7px; }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; box-shadow: 0 8px 20px rgba(59,111,212,.26); }
+.btn-ghost { background: #fff; border: 1.5px solid var(--line); color: var(--muted); }
+.hero {
+  max-width: 1040px; margin: 0 auto; padding: 56px 24px 30px;
+  display: grid; grid-template-columns: 1.2fr .8fr; gap: 36px; align-items: center;
+}
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; background: #fff;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 14px;
+  font-size: 12px; font-weight: 900; color: var(--accent); margin-bottom: 18px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sea); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .5; transform: scale(.8);} }
+h1 { font-size: clamp(28px, 4.2vw, 44px); font-weight: 900; line-height: 1.18; letter-spacing: -.02em; margin-bottom: 16px; }
+h1 em { font-style: normal; color: var(--accent); }
+.lead { font-size: 15.5px; line-height: 1.9; color: #35486a; max-width: 600px; margin-bottom: 22px; }
+.cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-avatar {
+  background: var(--paper); border: 1.5px solid var(--line); border-radius: 28px;
+  padding: 26px 22px 18px; text-align: center; box-shadow: 0 22px 70px rgba(59,111,212,.14);
+}
+.hero-avatar img { height: 320px; width: auto; }
+.hero-avatar h2 { font-size: 17px; margin: 8px 0 4px; }
+.hero-avatar p { font-size: 12.5px; color: #3f527a; line-height: 1.7; }
+.disclaimer {
+  max-width: 1040px; margin: 0 auto; padding: 0 24px 8px;
+}
+.disclaimer div {
+  background: #fff7e6; border: 1.5px solid #f4d9a6; color: #8a6100;
+  border-radius: 14px; padding: 12px 18px; font-size: 13px; font-weight: 700;
+}
+section { max-width: 1040px; margin: 0 auto; padding: 34px 24px; }
+section > h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 900; margin-bottom: 6px; }
+section > .sub { color: var(--muted); font-size: 14px; font-weight: 700; margin-bottom: 22px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.card {
+  background: var(--paper); border: 1.5px solid var(--line); border-radius: 24px;
+  padding: 24px; box-shadow: 0 12px 36px rgba(19,34,61,.06);
+}
+.card .tag { display: inline-block; background: var(--soft); color: var(--accent2); border-radius: 999px; padding: 3px 12px; font-size: 11.5px; font-weight: 900; margin-bottom: 10px; }
+.card .tag.new { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.card h3 { font-size: 17px; font-weight: 900; margin-bottom: 8px; }
+.card p { font-size: 13.5px; color: #3f527a; line-height: 1.8; }
+.story {
+  background: var(--paper); border: 1.5px solid var(--line); border-radius: 24px;
+  padding: 28px; box-shadow: 0 12px 36px rgba(19,34,61,.06);
+}
+.story blockquote { border-left: 4px solid var(--sea); padding: 4px 0 4px 16px; margin: 14px 0; color: #35486a; font-size: 14px; line-height: 1.9; }
+.story .num { color: var(--down); font-weight: 900; }
+.story .good { color: var(--up); font-weight: 900; }
+.links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 40px 20px 46px; border-top: 1px solid var(--line); margin-top: 30px; }
+footer a { color: var(--accent); font-weight: 700; }
+@media (max-width: 760px) {
+  header { padding: 9px 12px; flex-wrap: wrap; }
+  .hbrand { font-size: 14px; }
+  .hbrand sub { display: none; }
+  .hnav { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .hnav .btn { white-space: nowrap; }
+  .hero { grid-template-columns: 1fr; padding-top: 34px; }
+  .hero-avatar img { height: 220px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbrand">Kurage FX AI Trade<sub>kfxai — FX paper trading, measured in public</sub></div>
+  <nav class="hnav">
+    <a class="btn btn-ghost" href="kfxai.html">日本語</a>
+    <a class="btn btn-primary" href="https://kurage.exbridge.jp/kfxai.php">Live Dashboard</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div>
+    <span class="eyebrow"><span class="dot"></span>PAPER TRADING · OANDA PRACTICE · EVERY NUMBER PUBLISHED</span>
+    <h1>An FX bot that <em>killed its own prediction model</em> — and trades the strategy that survived.</h1>
+    <p class="lead">
+      kfxai is the FX sibling of <a href="https://kfreqai.exbridge.jp/" style="color:var(--accent);font-weight:700">kfreqai</a>,
+      run by the same jellyfish AI VTuber, Kurage. Before letting it trade, we built a
+      <strong>walk-forward backtest harness</strong> and measured ML direction prediction across
+      ~10,000 simulated trades. The verdict: <strong>no edge, at any timeframe</strong>. So we threw
+      it away — and adopted the one strategy that survived every robustness test:
+      a Tokyo-range → London-breakout session strategy on JPY pairs.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://kurage.exbridge.jp/kfxai.php">Live Dashboard</a>
+      <a class="btn btn-ghost" href="https://github.com/katsushi2441/kfxai">GitHub</a>
+      <a class="btn btn-ghost" href="https://kfreqai.exbridge.jp/">Crypto sibling: kfreqai</a>
+    </div>
+  </div>
+  <div class="hero-avatar">
+    <img src="assets/kurage_avatar.webp" alt="Kurage — jellyfish AI VTuber trader" loading="eager">
+    <h2>Kurage 🪼</h2>
+    <p>AI VTuber · runs the bot on OANDA Practice, and publishes what the data actually said.</p>
+  </div>
+</div>
+
+<div class="disclaimer">
+  <div>⚠️ Paper trading only — virtual trades against real OANDA Practice prices; no real funds are at stake.
+  FX involves leverage and losses can exceed deposits. Not affiliated with or endorsed by OANDA.
+  Nothing on this site is financial advice.</div>
+</div>
+
+<section>
+  <h2>Built in the honest order</h2>
+  <p class="sub">Measure first, trade second. The backtest harness ships in the repo.</p>
+  <div class="grid">
+    <div class="card">
+      <span class="tag">DISCIPLINE</span>
+      <h3>We killed direction prediction with data</h3>
+      <p>Logistic regression and LightGBM, on M15 / H1 / H4 candles, with triple-barrier labels and
+      richer features — 7 configurations, ~10,000 walk-forward trades. Direction accuracy came out
+      at 49–52% against a 52.6% breakeven. Every configuration lost money. The harness that
+      proved it is <code>scripts/backtest.py</code>, in the open.</p>
+    </div>
+    <div class="card">
+      <span class="tag new">LIVE</span>
+      <h3>Session breakout — the survivor</h3>
+      <p>Tokyo range (00–07 UTC) broken during London hours (07–12 UTC), traded with the trend:
+      stop at the far side of the range, target at 1.5× range height, forced flat at 21:00 UTC,
+      one trade per pair per day. Validated over <strong>1.6 years / 570 trades</strong> —
+      positive on every take-profit multiple and buffer we swept.</p>
+    </div>
+    <div class="card">
+      <span class="tag new">LIVE</span>
+      <h3>JPY pairs only — for a reason</h3>
+      <p>The edge concentrates in USD/JPY, EUR/JPY and GBP/JPY — where the Tokyo session
+      actually sets a meaningful range. AUD/JPY lost in both test windows and EUR/USD flipped
+      sign between parameters, so both were excluded. Structure first, not cherry-picking.</p>
+    </div>
+    <div class="card">
+      <span class="tag">CORE</span>
+      <h3>OSS body with fixed risk gates</h3>
+      <p>OANDA v20 connectivity, spread cap, daily-loss cap, max positions, stop/target on every
+      order, SQLite trade journal, and a live dashboard. GPL-3.0 — clone it and it runs in paper
+      mode with a rule-based brain, no LLM required.</p>
+    </div>
+    <div class="card">
+      <span class="tag">CORE</span>
+      <h3>Trust boundary: the brain can't touch money</h3>
+      <p>The judgment layer (market regime, risk directives, trade reviews) is pluggable —
+      rule-based, local Gemma 4 via Ollama, or a paid x402 API. Whichever you pick, it holds
+      no broker credentials, decides no order sizes, and cannot place orders. Final risk
+      decisions live in the body you run yourself.</p>
+    </div>
+    <div class="card">
+      <span class="tag new">NEW</span>
+      <h3>Metered brain: Kurage FX Brain</h3>
+      <p>The paid judgment API vendors the LLM intelligence of popular open-source trading
+      projects — TradingAgents (Apache-2.0), FinGPT (MIT), ai-hedge-fund (MIT), pinned commits,
+      full attribution — on local Gemma 4 12B. 15 skills at $0.05 per call, plus the full
+      multi-agent debate graph at $0.50 (~5.5 minutes of measured compute). USDC on Base,
+      JPYC on Polygon, or Bankr.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>What the data said</h2>
+  <p class="sub">The numbers below are why the bot trades what it trades.</p>
+  <div class="story">
+    <blockquote>
+      H4 candles, 2.5 years, 2,922 walk-forward trades: direction accuracy
+      <span class="num">49.2%</span> — a coin toss. H1 and M15 did no better, with either model.
+      A strategy that only fires when the model is confident still lost on every window.
+      So kfxai does not trade ML direction predictions.
+    </blockquote>
+    <blockquote>
+      One "edge" looked real: AUD/JPY made <span class="good">+7,277</span> (paper JPY) on H1 —
+      then flipped to <span class="num">-26,697</span> on H4. Sign instability across windows and
+      timeframes is how model variance disguises itself as signal. Excluded.
+    </blockquote>
+    <blockquote>
+      The session breakout survived everything we threw at it: two separate windows,
+      a take-profit sweep that rose monotonically from <span class="good">+770</span> to
+      <span class="good">+8,841</span> (paper JPY, 1,000 units), buffer sweeps all positive,
+      and a structural story — the Tokyo range means something for JPY pairs. That's the one
+      running on paper now.
+    </blockquote>
+    <div class="links">
+      <a class="btn btn-primary" href="https://kurage.exbridge.jp/kfxai.php">Live positions &amp; cycles</a>
+      <a class="btn btn-ghost" href="https://github.com/katsushi2441/kfxai">Read the code</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Stack</h2>
+  <p class="sub">Python · FastAPI · OANDA v20 REST (Practice) · SQLite · Gemma 4 12B via Ollama · systemd · GPL-3.0</p>
+</section>
+
+<footer>
+  Kurage FX AI Trade — an <a href="https://exbridge.jp/">exBridge</a> research project ·
+  <a href="kfxai.html">日本語版はこちら</a> ·
+  <a href="https://kfreqai.exbridge.jp/">kfreqai (crypto)</a><br>
+  Paper trading only. FX involves leverage risk. Nothing here is financial advice.
+</footer>
+
+</body>
+</html>
