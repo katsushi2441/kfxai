@@ -1,0 +1,10 @@
+[Unit]
+Description=Kurage FX AI Trade evidence-based research cycle
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kojima/work/kfxai
+EnvironmentFile=/home/kojima/work/kfxai/.env
+ExecStart=/home/kojima/work/kfxai/.venv/bin/kfxai-research
+TimeoutStartSec=3600
+

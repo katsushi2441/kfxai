@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kurage FX AI Trade</title>
+  <meta name="description" content="OANDAを使うOSS FX取引ボディと、差し替え可能な従量課金AI判断レイヤー。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#123640;--muted:#5c747a;--paper:#fffdf8;--aqua:#24aebb;--aqua-pale:#dff6f4;--coral:#f36f59;--line:#cfe2df;--good:#24886f;--warn:#c68331;--bad:#c85046}
+    *{box-sizing:border-box}html{background:#edf8f6}body{margin:0;color:var(--ink);font-family:"Zen Kaku Gothic New",sans-serif;background:radial-gradient(circle at 8% 5%,#c9f1ec 0,transparent 31rem),radial-gradient(circle at 96% 0,#fff0d5 0,transparent 28rem),linear-gradient(145deg,#fff 0,#f5fbf9 52%,#e8f6f4 100%);min-height:100vh}
+    main{width:min(1460px,100%);margin:auto;padding:22px}.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:end;padding:22px 26px 18px;border:1px solid rgba(18,54,64,.1);border-radius:28px;background:rgba(255,255,255,.78);box-shadow:0 20px 60px rgba(18,54,64,.09);backdrop-filter:blur(16px)}
+    .kicker{font-family:"DM Sans",sans-serif;font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--aqua);text-transform:uppercase}.hero h1{font-size:clamp(30px,5vw,62px);line-height:.94;letter-spacing:-.055em;margin:8px 0 12px}.hero h1 span{color:var(--coral)}.hero p{max-width:760px;margin:0;color:var(--muted);font-size:14px;line-height:1.75;font-weight:700}.stamp{min-width:190px;padding:14px 18px;border:1px solid var(--line);border-radius:18px;background:var(--paper);font-family:"DM Sans",sans-serif}.stamp strong{display:block;font-size:26px}.stamp small{color:var(--muted)}
+    .strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:14px 0}.metric,.panel{border:1px solid rgba(18,54,64,.1);background:rgba(255,255,255,.84);box-shadow:0 14px 34px rgba(18,54,64,.07)}.metric{padding:15px 16px;border-radius:18px}.metric span{display:block;color:var(--muted);font-size:11px;font-weight:900;letter-spacing:.08em}.metric strong{display:block;margin-top:5px;font:700 20px "DM Sans",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:14px}.panel{padding:18px;border-radius:22px;min-width:0}.panel h2{margin:0 0 14px;font-size:17px;letter-spacing:-.02em}.status-line{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border-radius:16px;background:linear-gradient(130deg,var(--aqua-pale),#fff)}.dot{width:12px;height:12px;margin-top:5px;border-radius:50%;background:var(--good);box-shadow:0 0 0 5px rgba(36,136,111,.12)}.status-line strong,.status-line span{display:block}.status-line span{margin-top:3px;color:var(--muted);font-size:12px;line-height:1.55}
+    .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.chip{padding:6px 9px;border-radius:999px;background:#f0f8f6;border:1px solid var(--line);font:700 11px "DM Sans",sans-serif}.table-wrap{overflow:auto;max-height:390px;border-radius:14px;border:1px solid #e1ecea}table{width:100%;border-collapse:collapse;min-width:700px;background:#fff}th,td{padding:10px 11px;border-bottom:1px solid #edf2f1;text-align:left;font-size:11px;white-space:nowrap}th{position:sticky;top:0;background:#f5faf9;color:var(--muted);font-weight:900;z-index:1}.buy{color:var(--good)}.sell{color:var(--bad)}.hold{color:var(--muted)}.yes{color:var(--good);font-weight:900}.no{color:var(--muted)}
+    .footer{display:flex;justify-content:space-between;gap:16px;margin-top:14px;padding:12px 4px;color:var(--muted);font-size:11px}.error{margin-top:12px;padding:10px 12px;border-radius:12px;background:#fff1ed;color:var(--bad);font-size:12px;display:none}
+    @media(max-width:1050px){.strip{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:650px){main{padding:10px}.hero{grid-template-columns:1fr;padding:18px}.stamp{min-width:0}.strip{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:38px}.footer{display:block}.footer span{display:block;margin-top:5px}}
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div><div class="kicker">OSS body / metered brain</div><h1>Kurage FX<br><span>AI Trade</span></h1><p>OANDAの市場データと注文APIを使い、予測、地合い判断、固定リスク制御、反省、再検証を継続するFX運用システム。初期設定はpaper取引です。</p></div>
+    <div class="stamp"><small>system state</small><strong id="systemState">LOADING</strong><small id="updatedAt">接続中</small></div>
+  </header>
+  <section class="strip">
+    <div class="metric"><span>MODE</span><strong id="mode">-</strong></div>
+    <div class="metric"><span>MARKET</span><strong id="market">-</strong></div>
+    <div class="metric"><span>REGIME</span><strong id="regime">-</strong></div>
+    <div class="metric"><span>DIRECTIVE</span><strong id="directive">-</strong></div>
+    <div class="metric"><span>PAPER P&amp;L</span><strong id="pnl">¥0</strong></div>
+    <div class="metric"><span>BRAIN</span><strong id="brain">-</strong></div>
+  </section>
+  <section class="grid">
+    <article class="panel"><h2>運転状況</h2><div class="status-line"><div class="dot" id="statusDot"></div><div><strong id="cycleState">データ待機中</strong><span id="cycleDetail">直近サイクルを読み込んでいます。</span></div></div><div class="chips" id="instruments"></div><div class="error" id="errorBox"></div></article>
+    <article class="panel"><h2>検証成績</h2><div class="status-line"><div class="dot"></div><div><strong id="record">0 trades / 0.0%</strong><span id="recordDetail">paper取引の決済結果だけを集計します。</span></div></div><div class="chips"><span class="chip">LLMは注文量を変更不可</span><span class="chip">日次損失上限</span><span class="chip">スプレッド制限</span><span class="chip">週末停止</span></div></article>
+    <article class="panel"><h2>直近の判断</h2><div class="table-wrap"><table><thead><tr><th>時刻</th><th>通貨</th><th>判断</th><th>P(up)</th><th>spread</th><th>実行</th><th>理由</th></tr></thead><tbody id="decisions"></tbody></table></div></article>
+    <article class="panel"><h2>paper取引台帳</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>通貨</th><th>方向</th><th>状態</th><th>建値</th><th>決済</th><th>損益</th><th>理由</th></tr></thead><tbody id="trades"></tbody></table></div></article>
+  </section>
+  <footer class="footer"><span>Kurage FX AI Trade / OANDA Practice-first architecture</span><span>投資助言ではありません。レバレッジ取引には元本を超える損失リスクがあります。</span></footer>
+</main>
+<script>
+const yen=new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0});
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const time=v=>v?new Date(v).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'-';
+async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);const d=await r.json();
+document.querySelector('#systemState').textContent=d.recent_cycles?.[0]?.status==='failed'?'ATTENTION':'RUNNING';document.querySelector('#updatedAt').textContent=`updated ${time(d.time)}`;document.querySelector('#mode').textContent=`${d.mode} / ${d.environment}`;document.querySelector('#market').textContent=d.market_open?'OPEN':'CLOSED';document.querySelector('#regime').textContent=d.regime?.regime||'-';document.querySelector('#directive').textContent=d.directive?.directive||'-';document.querySelector('#brain').textContent=d.backend;document.querySelector('#pnl').textContent=yen.format(d.performance?.pnl_jpy||0);
+document.querySelector('#instruments').innerHTML=(d.instruments||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join('');const cycle=d.recent_cycles?.[0];document.querySelector('#cycleState').textContent=cycle?`cycle #${cycle.id} / ${cycle.status}`:'まだサイクル未実行';document.querySelector('#cycleDetail').textContent=cycle?`${time(cycle.started_at)}開始・${cycle.detail||'エラーなし'}`:'OANDA認証情報を設定しworkerを起動してください。';
+const p=d.performance||{};document.querySelector('#record').textContent=`${p.closed_trades||0} trades / ${((p.win_rate||0)*100).toFixed(1)}% win`;document.querySelector('#recordDetail').textContent=`wins ${p.wins||0} / total P&L ${yen.format(p.pnl_jpy||0)}`;
+document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td class="${x.executed?'yes':'no'}">${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
+document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td>${esc(x.side)}</td><td>${esc(x.status)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td>${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="8">paper取引はまだありません。</td></tr>';
+const err=d.last_error?.error;const box=document.querySelector('#errorBox');box.style.display=err?'block':'none';box.textContent=err?`last error: ${err}`:'';
+}catch(e){document.querySelector('#systemState').textContent='OFFLINE';const box=document.querySelector('#errorBox');box.style.display='block';box.textContent=`dashboard error: ${e.message}`;}}
+refresh();setInterval(refresh,15000);
+</script>
+</body>
+</html>
+

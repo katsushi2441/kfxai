@@ -1,0 +1,15 @@
+{
+  "instruments": ["USD_JPY", "EUR_JPY", "EUR_USD", "GBP_JPY", "AUD_JPY"],
+  "granularity": "M15",
+  "candle_count": 240,
+  "cycle_seconds": 300,
+  "base_units": 1000,
+  "max_positions": 3,
+  "signal_threshold": 0.62,
+  "max_spread_pips": 2.0,
+  "stop_loss_pips": 25.0,
+  "take_profit_pips": 40.0,
+  "max_daily_loss_jpy": 3000.0,
+  "max_hold_candles": 32
+}
+

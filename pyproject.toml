@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kfxai"
+version = "0.1.0"
+description = "Kurage FX AI Trade: an OSS OANDA trading body with a pluggable metered judgment brain"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-only" }
+dependencies = [
+  "fastapi>=0.115,<0.140",
+  "requests>=2.32,<3",
+  "uvicorn[standard]>=0.34,<0.52"
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<0.29",
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<0.16"
+]
+
+[project.scripts]
+kfxai-worker = "kfxai.worker:main"
+kfxai-cycle = "kfxai.worker:run_once"
+kfxai-research = "kfxai.research:main"
+kfxai-brain = "kfxai.brain_api:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+kfxai = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

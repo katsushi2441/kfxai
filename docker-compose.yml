@@ -1,0 +1,24 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    command: uvicorn kfxai.api:app --host 0.0.0.0 --port 18324
+    ports:
+      - "127.0.0.1:18324:18324"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+  worker:
+    build: .
+    env_file: .env
+    command: kfxai-worker
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+  brain:
+    build: .
+    env_file: .env
+    command: kfxai-brain
+    ports:
+      - "127.0.0.1:18325:18325"
+    restart: unless-stopped

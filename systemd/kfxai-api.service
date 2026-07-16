@@ -1,0 +1,15 @@
+[Unit]
+Description=Kurage FX AI Trade dashboard API
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kojima/work/kfxai
+EnvironmentFile=/home/kojima/work/kfxai/.env
+ExecStart=/home/kojima/work/kfxai/.venv/bin/uvicorn kfxai.api:app --host 127.0.0.1 --port 18324
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+

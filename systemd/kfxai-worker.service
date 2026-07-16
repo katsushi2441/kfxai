@@ -1,0 +1,15 @@
+[Unit]
+Description=Kurage FX AI Trade continuous OANDA worker
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kojima/work/kfxai
+EnvironmentFile=/home/kojima/work/kfxai/.env
+ExecStart=/home/kojima/work/kfxai/.venv/bin/kfxai-worker
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+

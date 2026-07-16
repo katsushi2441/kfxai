@@ -1,0 +1,14 @@
+[Unit]
+Description=Kurage FX AI Trade judgment brain API
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/kojima/work/kfxai
+EnvironmentFile=/home/kojima/work/kfxai/.env
+ExecStart=/home/kojima/work/kfxai/.venv/bin/kfxai-brain
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
