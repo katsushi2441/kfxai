@@ -60,6 +60,9 @@ uvicorn kfxai.api:app --host 127.0.0.1 --port 18324
 
 ダッシュボードは`http://127.0.0.1:18324/`です。常駐workerは次で起動します。
 
+公開用PHPは`public/kfxai.php`です。Webサーバから読み取り専用APIへ接続し、
+`https://kurage.exbridge.jp/kfxai.php`で状態を表示します。
+
 ```bash
 kfxai-worker
 ```

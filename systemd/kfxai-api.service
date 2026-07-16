@@ -6,10 +6,9 @@ After=network-online.target
 Type=simple
 WorkingDirectory=/home/kojima/work/kfxai
 EnvironmentFile=/home/kojima/work/kfxai/.env
-ExecStart=/home/kojima/work/kfxai/.venv/bin/uvicorn kfxai.api:app --host 127.0.0.1 --port 18324
+ExecStart=/home/kojima/work/kfxai/.venv/bin/uvicorn kfxai.api:app --host 0.0.0.0 --port 18324
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=default.target
-
