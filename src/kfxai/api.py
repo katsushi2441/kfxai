@@ -67,6 +67,7 @@ def status() -> dict[str, Any]:
         "last_cycle": db.get_state("last_cycle", {}),
         "last_error": db.get_state("last_error", {}),
         "performance": performance,
+        "max_positions": settings.max_positions,
         "open_trades": [trade for trade in trades if trade["status"] == "open"],
         "recent_trades": trades,
         "recent_decisions": decisions,

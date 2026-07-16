@@ -166,6 +166,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
         <div class="card"><div class="label">市場</div><div class="value" id="market">-</div></div>
         <div class="card"><div class="label">地合い判定</div><div class="value" id="regime">-</div></div>
         <div class="card"><div class="label">リスク方針</div><div class="value" id="directive">-</div></div>
+        <div class="card"><div class="label">ポジション枠</div><div class="value" id="slots">-</div></div>
         <div class="card"><div class="label">paper累計損益</div><div class="value" id="pnl">¥0</div></div>
         <div class="card"><div class="label">判断エンジン</div><div class="value" id="brain">-</div></div>
       </div>
@@ -259,6 +260,9 @@ async function refresh(){
     document.querySelector('#brain').textContent=d.backend||'-';
     const pnl=d.performance?.pnl_jpy||0;
     const pnlEl=document.querySelector('#pnl');pnlEl.textContent=yen.format(pnl);pnlEl.className='value '+pnlClass(pnl);
+    const slotsEl=document.querySelector('#slots');const used=(d.open_trades||[]).length;const cap=d.max_positions;
+    slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
+    slotsEl.className='value '+(cap&&used>=cap?'down':'');
     document.querySelector('#instruments').innerHTML=(d.instruments||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join('');
     document.querySelector('#cycleState').textContent=cycle?`cycle #${cycle.id} / ${cycle.status}`:'まだサイクル未実行';
     document.querySelector('#cycleDetail').textContent=cycle?`${time(cycle.started_at)}開始・${cycle.detail||'エラーなし'}`:'OANDA認証情報を設定しworkerを起動してください。';
