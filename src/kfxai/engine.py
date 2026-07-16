@@ -10,6 +10,7 @@ from .judgment import JudgmentBackend, build_backend
 from .models import Candle, Price, Signal, utc_now_iso
 from .oanda import OandaClient
 from .predictor import DirectionModel
+from .strategy_session import session_should_close, session_signal
 
 
 def market_is_open(now: datetime | None = None) -> bool:
@@ -95,10 +96,19 @@ class TradingEngine:
         regime: dict[str, Any],
         directive: dict[str, Any],
     ) -> dict[str, Signal]:
+        if self.settings.strategy == "session":
+            return self._session_signals(candle_map, directive)
         result: dict[str, Signal] = {}
         for instrument, candles in candle_map.items():
+            pip_size = 0.01 if instrument.endswith("_JPY") else 0.0001
             model = DirectionModel()
-            model.fit(candles)
+            model.fit(
+                candles,
+                pip_size=pip_size,
+                stop_pips=self.settings.stop_loss_pips,
+                take_pips=self.settings.take_profit_pips,
+                max_hold=self.settings.max_hold_candles,
+            )
             probability, features = model.predict(candles)
             confidence = abs(probability - 0.5) * 2
             if probability >= self.settings.signal_threshold:
@@ -126,6 +136,28 @@ class TradingEngine:
                 model=f"direction-logistic/{model.samples}+{directive.get('model', 'unknown')}",
                 features={key: round(value, 8) for key, value in features.items()},
             )
+        return result
+
+    def _session_signals(
+        self,
+        candle_map: dict[str, list[Candle]],
+        directive: dict[str, Any],
+    ) -> dict[str, Signal]:
+        """セッションブレイクアウト戦略の信号。1銘柄1日1取引・risk_offで遮断。"""
+        now = datetime.now(timezone.utc)
+        today = now.strftime("%Y-%m-%d")
+        result: dict[str, Signal] = {}
+        for instrument, candles in candle_map.items():
+            traded = self.db.get_state(f"session_traded:{instrument}") == today
+            signal = session_signal(instrument, candles, self.settings, now, traded)
+            if signal.action != "hold" and directive.get("directive") == "risk_off":
+                signal = Signal(
+                    instrument=instrument, action="hold", probability_up=0.5, confidence=0.0,
+                    regime="session", directive="risk_off",
+                    reason="risk directive blocks new exposure",
+                    model=signal.model, features=signal.features,
+                )
+            result[instrument] = signal
         return result
 
     def _review_closed_trade(self, trade: dict[str, Any]) -> None:
@@ -160,8 +192,13 @@ class TradingEngine:
                     reason = "stop_loss"
                 elif current <= trade["take_price"]:
                     reason = "take_profit"
-            if not reason and trade["bars_held"] + 1 >= self.settings.max_hold_candles:
-                reason = "max_hold"
+            if not reason:
+                if self.settings.strategy == "session":
+                    # セッション戦略は時刻で手仕舞い(21:00 UTC以降/翌日のレンジ形成中)
+                    if session_should_close(datetime.now(timezone.utc), self.settings):
+                        reason = "session_close"
+                elif trade["bars_held"] + 1 >= self.settings.max_hold_candles:
+                    reason = "max_hold"
             self.db.advance_paper_trade(trade["id"])
             if reason:
                 pnl = estimate_pnl_jpy(
@@ -228,9 +265,13 @@ class TradingEngine:
                 if allowed and price:
                     side = "long" if signal.action == "buy" else "short"
                     signed_units = self.settings.base_units if side == "long" else -self.settings.base_units
-                    stop, take = price_targets(
-                        price, side, self.settings.stop_loss_pips, self.settings.take_profit_pips
-                    )
+                    if signal.stop_price is not None and signal.take_price is not None:
+                        # 戦略が価格ベースのSL/TPを指定(セッションブレイクアウト等)
+                        stop, take = signal.stop_price, signal.take_price
+                    else:
+                        stop, take = price_targets(
+                            price, side, self.settings.stop_loss_pips, self.settings.take_profit_pips
+                        )
                     if self.settings.trading_mode == "paper":
                         entry = price.ask if side == "long" else price.bid
                         reference = str(self.db.open_paper_trade(
@@ -241,6 +282,11 @@ class TradingEngine:
                         transaction = response.get("orderFillTransaction") or response.get("orderCreateTransaction") or {}
                         reference = str(transaction.get("id", "unknown"))
                     self.db.mark_executed(decision_id, self.settings.trading_mode, reference)
+                    if self.settings.strategy == "session":
+                        self.db.set_state(
+                            f"session_traded:{instrument}",
+                            datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        )
                     action.update({"executed": True, "reference": reference, "stop": stop, "take": take})
                     open_instruments.add(instrument)
                     open_count += 1

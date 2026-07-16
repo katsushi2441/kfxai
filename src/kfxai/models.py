@@ -55,6 +55,9 @@ class Signal:
     reason: str
     model: str
     features: dict[str, float]
+    # 戦略が価格ベースのSL/TPを持つ場合(セッションブレイクアウト等)。Noneなら固定pips。
+    stop_price: float | None = None
+    take_price: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

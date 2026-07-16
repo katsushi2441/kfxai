@@ -7,8 +7,9 @@ from .models import Candle
 
 
 FEATURES = (
-    "return_1", "return_3", "return_6", "return_12", "ma_gap",
-    "volatility", "range_mean", "rsi_scaled", "volume_ratio",
+    "return_1", "return_3", "return_6", "return_12", "return_24", "return_96",
+    "ma_gap", "volatility", "range_mean", "range_pos", "rsi_scaled",
+    "volume_ratio", "hour_sin", "hour_cos",
 )
 
 
@@ -31,13 +32,47 @@ class DirectionModel:
         self.scales = [1.0] * len(FEATURES)
         self.samples = 0
 
-    def fit(self, candles: list[Candle], epochs: int = 160, learning_rate: float = 0.08) -> None:
+    def fit(
+        self,
+        candles: list[Candle],
+        epochs: int = 160,
+        learning_rate: float = 0.08,
+        *,
+        pip_size: float = 0.01,
+        stop_pips: float = 25.0,
+        take_pips: float = 40.0,
+        max_hold: int = 32,
+    ) -> None:
+        """トリプルバリア・ラベルで学習する。
+
+        ラベル = 「その足の終値でLONGを建てたら、+take_pips到達を-stop_pips到達より
+        先に達成するか(=実際に約定する事象)」。max_hold本以内にどちらも触れなければ
+        max_hold終値での損益符号でラベル付け(paper決済の max_hold と一致)。
+        SL/TP同一足内はSL優先(保守的、simulate_exitと一致)。look-ahead防止済み。
+        """
         samples: list[list[float]] = []
         labels: list[float] = []
-        for end in range(30, len(candles) - 1):
-            values = feature_vector(candles, end)
+        up = take_pips * pip_size
+        dn = stop_pips * pip_size
+        for end in range(30, len(candles) - max_hold):
+            # 特徴量はentryバー(end)まで含めて算出=predict(candles[:i+1])と一致させる
+            values = feature_vector(candles, end + 1)
+            entry = candles[end].close
+            tp = entry + up
+            sl = entry - dn
+            label = None
+            for j in range(end + 1, end + max_hold + 1):
+                c = candles[j]
+                if c.low <= sl:
+                    label = 0.0
+                    break
+                if c.high >= tp:
+                    label = 1.0
+                    break
+            if label is None:  # タイムアウト = max_hold終値で決済
+                label = 1.0 if candles[end + max_hold].close > entry else 0.0
             samples.append([values[name] for name in FEATURES])
-            labels.append(1.0 if candles[end].close > candles[end - 1].close else 0.0)
+            labels.append(label)
         self.samples = len(samples)
         if self.samples < 40:
             return

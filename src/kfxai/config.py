@@ -41,6 +41,16 @@ class Settings:
     brain_url: str = ""
     brain_timeout: int = 330
     enable_control_api: bool = False
+    # 戦略: direction(方向モデル) / session(東京レンジ→ロンドンブレイクアウト)
+    strategy: str = "direction"
+    session_range_start: int = 0      # 東京レンジ開始 UTC時
+    session_range_end: int = 7        # 東京レンジ終了 UTC時
+    session_entry_until: int = 12     # この UTC時までにブレイクしなければ見送り
+    session_close_hour: int = 21      # 強制手仕舞い UTC時
+    session_buffer_pips: float = 2.0  # ブレイク確認バッファ
+    session_tp_mult: float = 1.5      # TP=レンジ幅×この倍率
+    session_max_sl_pips: float = 40.0  # レンジ(=SL幅)がこれ超の日は見送り
+    session_min_range_pips: float = 10.0  # レンジ幅下限
 
     @property
     def api_base_url(self) -> str:
@@ -72,6 +82,8 @@ class Settings:
             raise ValueError("base_units and max_positions must be positive")
         if not 0.5 < self.signal_threshold < 1:
             raise ValueError("signal_threshold must be between 0.5 and 1")
+        if self.strategy not in {"direction", "session"}:
+            raise ValueError("KFXAI_STRATEGY must be direction or session")
 
 
 def load_settings(config_path: str | Path | None = None) -> Settings:
@@ -104,6 +116,15 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         brain_url=os.getenv("KFXAI_BRAIN_URL", "").rstrip("/"),
         brain_timeout=int(os.getenv("KFXAI_BRAIN_TIMEOUT", "330")),
         enable_control_api=_bool("KFXAI_ENABLE_CONTROL_API"),
+        strategy=os.getenv("KFXAI_STRATEGY", "direction").strip().lower(),
+        session_range_start=int(os.getenv("KFXAI_SESSION_RANGE_START", "0")),
+        session_range_end=int(os.getenv("KFXAI_SESSION_RANGE_END", "7")),
+        session_entry_until=int(os.getenv("KFXAI_SESSION_ENTRY_UNTIL", "12")),
+        session_close_hour=int(os.getenv("KFXAI_SESSION_CLOSE_HOUR", "21")),
+        session_buffer_pips=float(os.getenv("KFXAI_SESSION_BUFFER_PIPS", "2.0")),
+        session_tp_mult=float(os.getenv("KFXAI_SESSION_TP_MULT", "1.5")),
+        session_max_sl_pips=float(os.getenv("KFXAI_SESSION_MAX_SL_PIPS", "40")),
+        session_min_range_pips=float(os.getenv("KFXAI_SESSION_MIN_RANGE_PIPS", "10")),
     )
     if config_path:
         payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
