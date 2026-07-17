@@ -306,6 +306,10 @@ class TradingEngine:
                 for strat in self.arena:
                     state = agent_state[strat.name]
                     for instrument in candle_map:
+                        # 戦略ごとの対象ペア制限(session=円のみ、dual_thrust=検証済み3ペア等)
+                        allowed = getattr(strat, "instruments", None)
+                        if allowed and instrument not in allowed:
+                            continue
                         if state["suspended"]:
                             entries.append((strat, Signal(
                                 instrument=instrument, action="hold", probability_up=0.5,

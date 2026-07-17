@@ -64,6 +64,8 @@ class SessionBreakout:
     daily_limit = True
     close_on_session_end = True
     max_hold_minutes = None
+    # 東京レンジ→ロンドンブレイクの構造は円ペア前提。非円ペア拡張後も対象を固定する
+    instruments = ("USD_JPY", "EUR_JPY", "GBP_JPY")
 
     def signal(self, instrument: str, candles: list[Candle], settings: Settings,
                now: datetime, already_open: bool) -> Signal:
@@ -266,12 +268,83 @@ class LlmAnalyst:
         return _hold(instrument, self.name, f"kfxbrain: {decision} (conf {confidence:.2f})")
 
 
+class DualThrust:
+    """Dual Thrust(Michael Chalek)。前日レンジ×Kを当日始値に足し引きした水準の
+    ブレイクで順張り、当日中(セッション終了21UTC)に手仕舞い。
+
+    2026-07-17 backtest_classic.py(1.6年M15・スプレッド課金)で採用:
+    USD_JPY/EUR_USD/GBP_USDはK=0.4〜0.7の全値で黒字(パラメータにロバスト)、
+    K=0.5で3ペア合計+26,487円/1,205取引(1000通貨)。円クロス(EUR_JPY/GBP_JPY)と
+    AUD_USDは赤字のため対象外。落第したdonchian/rsi_meanrev/ma_cross
+    (同基盤で-9.9万/-5.9万/-3.8万)の後継。
+    バックテストはUTC日付終わりで手仕舞い、ライブは21:00 UTCクローズ(既存の
+    セッション終了機構を再利用)でわずかに早い点だけ差異がある。
+    """
+    name = "dual_thrust"
+    # バックテストはSL後の同日再エントリーを許す(その条件で+26,487)ため1日1回制限はしない
+    daily_limit = False
+    close_on_session_end = True
+    max_hold_minutes = None
+    instruments = ("USD_JPY", "EUR_USD", "GBP_USD")
+    K = 0.5
+
+    def signal(self, instrument, candles, settings, now, already_open) -> Signal:
+        if already_open:
+            return _hold(instrument, self.name, "position already open")
+        today = now.strftime("%Y-%m-%d")
+        prev: list[Candle] = []
+        cur: list[Candle] = []
+        for c in candles:
+            day = c.time[:10]
+            if day == today:
+                cur.append(c)
+            else:
+                prev.append((day, c))
+        if not cur:
+            return _hold(instrument, self.name, "no candles for today yet")
+        prev_days = [d for d, _ in prev]
+        if not prev_days:
+            return _hold(instrument, self.name, "no previous day data")
+        last_day = prev_days[-1]
+        pd = [c for d, c in prev if d == last_day]
+        if len(pd) < 20:
+            return _hold(instrument, self.name, "previous day incomplete")
+        hh = max(c.high for c in pd)
+        ll = min(c.low for c in pd)
+        cc = pd[-1].close
+        rng = max(hh - min(cc, ll), max(cc, hh) - ll)
+        if rng <= 0:
+            return _hold(instrument, self.name, "zero range")
+        day_open = cur[0].open
+        up = day_open + self.K * rng
+        dn = day_open - self.K * rng
+        last = candles[-1]
+        # 21UTC以降は新規なし(セッション終了クローズと同期)
+        if now.hour >= 20:
+            return _hold(instrument, self.name, "too late in session")
+        feats = {"day_open": day_open, "prev_range": rng, "band_up": up, "band_dn": dn}
+        if last.close > up:
+            return Signal(instrument=instrument, action="buy", probability_up=1.0, confidence=1.0,
+                          regime="arena", directive="neutral",
+                          reason=f"dual-thrust break above {up:.3f} (K={self.K})",
+                          model=self.name, features=feats,
+                          stop_price=dn, take_price=last.close + 3 * rng)
+        if last.close < dn:
+            return Signal(instrument=instrument, action="sell", probability_up=0.0, confidence=1.0,
+                          regime="arena", directive="neutral",
+                          reason=f"dual-thrust break below {dn:.3f} (K={self.K})",
+                          model=self.name, features=feats,
+                          stop_price=up, take_price=last.close - 3 * rng)
+        return _hold(instrument, self.name, "inside thrust bands")
+
+
 REGISTRY = {
     "session": SessionBreakout,
     "donchian": DonchianBreakout,
     "rsi_meanrev": RsiMeanReversion,
     "ma_cross": MaCross,
     "llm_analyst": LlmAnalyst,
+    "dual_thrust": DualThrust,
 }
 
 
