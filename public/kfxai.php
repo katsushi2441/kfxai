@@ -209,7 +209,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
     <section>
       <h2>戦略実行エージェント（各: 枠3・予算30万円・DD10%で新規停止）</h2>
       <div class="tscroll"><table>
-        <thead><tr><th>エージェント</th><th>状態</th><th>残高</th><th>収益率</th><th>本日</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>建玉中</th></tr></thead>
+        <thead><tr><th>エージェント</th><th>状態</th><th>残高</th><th>収益率</th><th>本日</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>枠(使用/上限)</th></tr></thead>
         <tbody id="leaderboard"><tr><td colspan="9">読み込み中</td></tr></tbody>
       </table></div>
     </section>
@@ -269,8 +269,16 @@ async function refresh(){
     const pnl=d.performance?.pnl_jpy||0;
     const pnlEl=document.querySelector('#pnl');pnlEl.textContent=yen.format(pnl);pnlEl.className='value '+pnlClass(pnl);
     const slotsEl=document.querySelector('#slots');const used=(d.open_trades||[]).length;const cap=d.max_positions;
-    slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
-    slotsEl.className='value '+(cap&&used>=cap?'down':'');
+    const agents=(d.strategy_performance||[]).filter(x=>x.arena!==false);
+    if(d.strategy_mode==='arena'&&agents.length){
+      const totalCap=agents.length*(cap||0);
+      slotsEl.innerHTML=`${used} / ${totalCap} 使用<div style="font-size:.55em;font-weight:normal;line-height:1.7;margin-top:2px">`+
+        agents.map(x=>`${esc(x.strategy)} <b class="${(x.open_now||0)>=cap?'down':''}">${x.open_now||0}/${cap}</b>`).join('・')+'</div>';
+      slotsEl.className='value';
+    }else{
+      slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
+      slotsEl.className='value '+(cap&&used>=cap?'down':'');
+    }
     document.querySelector('#instruments').innerHTML=(d.instruments||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join('');
     document.querySelector('#cycleState').textContent=cycle?`cycle #${cycle.id} / ${cycle.status}`:'まだサイクル未実行';
     document.querySelector('#cycleDetail').textContent=cycle?`${time(cycle.started_at)}開始・${cycle.detail||'エラーなし'}`:'OANDA認証情報を設定しworkerを起動してください。';
@@ -279,7 +287,7 @@ async function refresh(){
     document.querySelector('#recordDetail').textContent=`wins ${p.wins||0} / 累計損益 ${yen.format(p.pnl_jpy||0)}`;
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
     document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.strategy||'-')}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="11">paper取引はまだありません。</td></tr>';
-    document.querySelector('#leaderboard').innerHTML=(d.strategy_performance||[]).map(x=>{const wr=x.trades?Math.round(100*x.wins/x.trades):null;const st=x.status||'active';return `<tr><td>${esc(x.strategy)}</td><td class="${st==='suspended'?'down':'up'}">${st==='suspended'?'停止(DD超過)':'稼働中'}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${x.open_now||0}</td></tr>`;}).join('')||'<tr><td colspan="9">まだ取引がありません。</td></tr>';
+    document.querySelector('#leaderboard').innerHTML=(d.strategy_performance||[]).map(x=>{const wr=x.trades?Math.round(100*x.wins/x.trades):null;const st=x.status||'active';const legacy=x.arena===false;const slotCell=legacy?`${x.open_now||0}`:`${x.open_now||0} / ${x.max_positions??d.max_positions??'-'}`;return `<tr><td>${esc(x.strategy)}${legacy?' <span style="opacity:.6">(旧)</span>':''}</td><td class="${legacy?'':(st==='suspended'?'down':'up')}">${legacy?'引退':(st==='suspended'?'停止(DD超過)':'稼働中')}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${slotCell}</td></tr>`;}).join('')||'<tr><td colspan="9">まだ取引がありません。</td></tr>';
     const err=d.last_error?.error;box.style.display=err?'block':'none';box.textContent=err?`last error: ${err}`:'';
   }catch(error){
     document.querySelector('#systemState').textContent='OFFLINE';

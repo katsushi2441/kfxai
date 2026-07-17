@@ -60,6 +60,18 @@ def _agent_performance() -> list[dict[str, Any]]:
         "THEN pnl_jpy ELSE 0 END), 0) AS today_pnl "
         "FROM paper_trades GROUP BY strategy ORDER BY pnl_jpy DESC"
     )
+    # arenaで構成中のエージェントは未取引でもゼロ行で出す(ダッシュボードの
+    # 枠表示がエージェント全員分になるように)。構成外=過去戦略はarena=False。
+    configured: list[str] = []
+    if settings.strategy == "arena":
+        from .strategies import build_strategies
+
+        configured = [s.name for s in build_strategies(settings)]
+        existing = {row["strategy"] for row in rows}
+        for name in configured:
+            if name not in existing:
+                rows.append({"strategy": name, "trades": 0, "wins": 0,
+                             "pnl_jpy": 0, "open_now": 0, "today_pnl": 0})
     budget = settings.agent_budget_jpy
     dd_limit = budget * settings.agent_max_drawdown_pct / 100
     for row in rows:
@@ -68,6 +80,10 @@ def _agent_performance() -> list[dict[str, Any]]:
         row["equity_jpy"] = round(budget + pnl)
         row["return_pct"] = round(100 * pnl / budget, 3) if budget else 0
         row["status"] = "suspended" if pnl <= -dd_limit else "active"
+        row["arena"] = (not configured) or row["strategy"] in configured
+        row["max_positions"] = settings.max_positions if row["arena"] else None
+    # 現役(arena)を上に、その中は損益順。過去戦略は下へ。
+    rows.sort(key=lambda r: (not r["arena"], -float(r["pnl_jpy"] or 0)))
     return rows
 
 
