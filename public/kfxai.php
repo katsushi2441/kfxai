@@ -272,9 +272,9 @@ async function refresh(){
     const agents=(d.strategy_performance||[]).filter(x=>x.arena!==false);
     if(d.strategy_mode==='arena'&&agents.length){
       const totalCap=agents.length*(cap||0);
-      slotsEl.innerHTML=`${used} / ${totalCap} 使用<div style="font-size:.55em;font-weight:normal;line-height:1.7;margin-top:2px">`+
-        agents.map(x=>`${esc(x.strategy)} <b class="${(x.open_now||0)>=cap?'down':''}">${x.open_now||0}/${cap}</b>`).join('・')+'</div>';
-      slotsEl.className='value';
+      slotsEl.innerHTML=`${used} / ${totalCap} 使用<div style="font-size:.55em;font-weight:normal;line-height:1.7;margin-top:2px;white-space:normal;overflow:visible">`+
+        agents.map(x=>`<span style="white-space:nowrap">${esc(x.strategy)} <b class="${(x.open_now||0)>=cap?'down':''}">${x.open_now||0}/${cap}</b></span>`).join(' ')+'</div>';
+      slotsEl.className='value';slotsEl.style.whiteSpace='normal';slotsEl.style.overflow='visible';
     }else{
       slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
       slotsEl.className='value '+(cap&&used>=cap?'down':'');
