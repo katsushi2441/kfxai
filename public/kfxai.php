@@ -6,10 +6,10 @@ $api_base = defined('KFXAI_API_BASE') ? KFXAI_API_BASE : 'http://exbridge.ddns.n
 
 function kfxai_h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
-// Kurageブログ(Bludit共用)からtag=kfxaiの記事だけを新しい順に返す。
+// Kurageブログ(Bludit共用)からcategory=kfxaiの記事だけを新しい順に返す。
 function kfxai_latest_blog_posts($limit = 5) {
     if (!defined('KFREQAI_BLOG_BASE') || !defined('KFREQAI_BLOG_API_TOKEN')) { return array(); }
-    $ch = curl_init(rtrim(KFREQAI_BLOG_BASE, '/') . '/api/pages?number=40&token=' . urlencode(KFREQAI_BLOG_API_TOKEN));
+    $ch = curl_init(rtrim(KFREQAI_BLOG_BASE, '/') . '/api/categories/kfxai?token=' . urlencode(KFREQAI_BLOG_API_TOKEN));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 8);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -18,15 +18,8 @@ function kfxai_latest_blog_posts($limit = 5) {
     curl_close($ch);
     if ($res === false || $code >= 400) { return array(); }
     $data = json_decode($res, true);
-    $pages = isset($data['data']) ? $data['data'] : array();
-    $mine = array();
-    foreach ($pages as $p) {
-        $tags = isset($p['tags']) ? (string) $p['tags'] : '';
-        if (strpos($tags, 'kfxai') === false) { continue; }
-        $mine[] = $p;
-        if (count($mine) >= $limit) { break; }
-    }
-    return $mine;
+    $pages = isset($data['data']['pages']) ? $data['data']['pages'] : array();
+    return array_slice($pages, 0, $limit);
 }
 
 function kfxai_get_json($url) {
@@ -227,7 +220,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
       <?php $kfxai_blog_posts = kfxai_latest_blog_posts(5); ?>
       <?php if (empty($kfxai_blog_posts)): ?>
         <p class="blog-more">記事の取得に失敗したか、まだ記事がありません。
-          <a href="https://kurage.exbridge.jp/blog/tag/kfxai">ブログで見る →</a></p>
+          <a href="https://kurage.exbridge.jp/blog/category/kfxai">ブログで見る →</a></p>
       <?php else: ?>
       <ul class="blog-links">
         <?php foreach ($kfxai_blog_posts as $p): ?>
@@ -235,7 +228,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
           <span class="blog-date"><?php echo kfxai_h(isset($p['date']) ? $p['date'] : ''); ?></span></li>
         <?php endforeach; ?>
       </ul>
-      <p class="blog-more"><a href="https://kurage.exbridge.jp/blog/tag/kfxai">kfxaiの記事一覧を見る →</a></p>
+      <p class="blog-more"><a href="https://kurage.exbridge.jp/blog/category/kfxai">kfxaiの記事一覧を見る →</a></p>
       <?php endif; ?>
     </section>
 

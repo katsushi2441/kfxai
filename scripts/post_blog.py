@@ -18,6 +18,7 @@ sys.path.insert(0, "/home/kojima/work/kfreqai/kurage-advisory")
 import kurage_blog  # noqa: E402
 
 TAGS = "FX自動取引,kfxai"
+CATEGORY = "kfxai"
 DISCLOSURE_FOOTER = (
     "\n\n---\n\n"
     "**注記**: kfxaiは現在ペーパートレード(OANDAデモ環境の実勢価格に対する仮想取引)で稼働しており、"
@@ -29,7 +30,7 @@ DISCLOSURE_FOOTER = (
 
 
 def post_to_bludit(title: str, slug: str, body: str,
-                   tags: str = TAGS, category: str | None = None,
+                   tags: str = TAGS, category: str | None = CATEGORY,
                    footer: str = DISCLOSURE_FOOTER) -> tuple[str, str]:
     """後方互換の薄いラッパー(kfxaiの既定タグ・免責を付けてkurage_blogへ委譲)。"""
     return kurage_blog.post_to_bludit(title, slug, body, tags=tags,
