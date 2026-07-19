@@ -72,9 +72,15 @@ def upload_ogp_image(unique_slug: str, title: str) -> str | None:
         return None
 
 
-def post_to_bludit(title: str, slug: str, body: str) -> tuple[str, str]:
+def post_to_bludit(title: str, slug: str, body: str,
+                   tags: str = TAGS, category: str | None = None,
+                   footer: str = DISCLOSURE_FOOTER) -> tuple[str, str]:
+    """Bluditへ投稿。tags/category/footerを渡せる(日次ブログ等の再利用用)。
+    footerは呼び出し側で本文に含めている場合は "" を渡す。"""
     creds = load_bludit_creds()
     now = datetime.now(JST)
+    if footer:
+        body = body + footer
     unique_slug = f"{slug}-{now.strftime('%Y%m%d-%H%M')}"
     payload = {
         "token": creds["BLUDIT_API_TOKEN"],
@@ -83,8 +89,10 @@ def post_to_bludit(title: str, slug: str, body: str) -> tuple[str, str]:
         "slug": unique_slug,
         "content": body,
         "status": "published",
-        "tags": TAGS,
+        "tags": tags,
     }
+    if category:
+        payload["category"] = category
     cover = upload_ogp_image(unique_slug, title)
     if cover:
         payload["coverImage"] = cover
@@ -115,8 +123,7 @@ def main() -> int:
         return 1
     with open(args.file, encoding="utf-8") as f:
         body = f.read().strip()
-    body += DISCLOSURE_FOOTER
-
+    # フッターは post_to_bludit の既定(DISCLOSURE_FOOTER)で付与される
     unique_slug, permalink = post_to_bludit(args.title, args.slug, body)
     print(f"posted: {permalink}")
     return 0
