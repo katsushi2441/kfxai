@@ -180,9 +180,11 @@ def main() -> int:
         print(body)
         return 0
 
-    import post_blog  # noqa: PLC0415
-    _, permalink = post_blog.post_to_bludit(title, slug, body, tags=TAGS, category=CATEGORY,
-                                            footer="")
+    # 投稿はKurageブログの持ち主(kfreqai/kurage-advisory/kurage_blog)を一方向で使う。
+    # kfxaiはブログ基盤をkfreqaiから借りる側(2026-07-17決定)で、循環依存はしない。
+    sys.path.insert(0, "/home/kojima/work/kfreqai/kurage-advisory")
+    import kurage_blog  # noqa: PLC0415
+    _, permalink = kurage_blog.post_to_bludit(title, slug, body, tags=TAGS, category=CATEGORY)
     print(f"posted: {permalink}")
     return 0
 
