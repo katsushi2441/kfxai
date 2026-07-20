@@ -52,6 +52,12 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
+
+// タブ/投資家選択はURLで持つ(kfreqaiと同じ・実リンクで遷移するのでJSに依存せず必ず選べる)。
+// ?view=arena=一覧、?agent=A=投資家Aのメイン画面。指定なし=本番。
+$kfxai_view  = (isset($_GET['view']) && $_GET['view'] === 'arena') ? 'arena' : 'honban';
+$kfxai_agent = isset($_GET['agent']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $_GET['agent']) : '';
+if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
 ?>
 <!doctype html>
 <html lang="ja">
@@ -105,7 +111,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
   .up { color: var(--up); } .down { color: var(--down); }
   section { margin-bottom: 28px; }
   .tabs { display:flex; gap:8px; margin:4px 0 20px; border-bottom:1px solid var(--border); }
-  .tabbtn { border:none; background:none; padding:10px 16px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabbtn { display:inline-block; border:none; background:none; padding:10px 16px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; text-decoration:none; }
   .tabbtn.active { color:var(--indigo); border-bottom-color:var(--indigo); }
   section h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; }
   .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -194,18 +200,18 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
       </div>
     </section>
 
-    <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。アリーナで投資家名を押すと、本番と同じ画面が
-         その投資家のデータで開く(ドリルイン)。 -->
+    <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。実リンクでURL遷移するのでJSに依存せず必ず選べる。
+         アリーナで投資家名を押すと、本番と同じ画面がその投資家のデータで開く(ドリルイン)。 -->
     <div class="tabs">
-      <button type="button" class="tabbtn active" data-tab="honban">本番（メイン戦略）</button>
-      <button type="button" class="tabbtn" data-tab="arena">アリーナ（戦略エージェント）</button>
+      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" href="?">本番（メイン戦略）</a>
+      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" href="?view=arena">アリーナ（戦略エージェント）</a>
     </div>
 
     <!-- 投資家を選択中のバナー(kfreqaiと同じ) -->
-    <div id="agentBanner" style="display:none;background:rgba(0,172,193,.10);border:1px solid rgba(0,172,193,.45);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:14px"></div>
+    <div id="agentBanner" style="<?php echo $kfxai_view === 'agent' ? '' : 'display:none;'; ?>background:rgba(0,172,193,.10);border:1px solid rgba(0,172,193,.45);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:14px"></div>
 
     <!-- メイン画面: 本番と、選択した投資家で共用(kfreqaiと同じ・データだけ差し替わる) -->
-    <div id="pane-main" class="pane">
+    <div id="pane-main" class="pane" style="<?php echo $kfxai_view === 'arena' ? 'display:none;' : ''; ?>">
       <p id="laneCaption" style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 12px"></p>
       <section>
         <div class="grid" id="laneCards">
@@ -234,7 +240,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
     </div>
 
     <!-- アリーナ一覧: 投資家リーダーボード。名前クリックで上のメイン画面をその投資家に切替 -->
-    <div id="pane-arena" class="pane" style="display:none">
+    <div id="pane-arena" class="pane" style="<?php echo $kfxai_view === 'arena' ? '' : 'display:none;'; ?>">
       <section>
         <h2>投資家レーン（本番の横で並列に試行 — 各: 枠3・予算30万円・DD10%で新規停止）</h2>
         <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 10px">別々の投資家が複数戦略を回す実験レーン(名前A/B/Cに意味はなく中身は進化する)。<b>投資家名をクリックすると、本番と同じ画面でその投資家のデータを表示</b>します。成績は投資家単位で評価し、良いロジックを本番へ昇格する。</p>
@@ -319,9 +325,9 @@ async function refresh(){
     box.style.display='block';box.textContent=`backend error: ${error.message}`;
   }
 }
-// タブ=本番/アリーナ(kfreqaiと同じ)。アリーナで投資家名クリック→本番と同じ画面を
-// その投資家データで表示(ドリルイン)。dはrefresh()が毎回LASTに格納する。
-let LAST=null, VIEW='honban', AGENT=null;
+// タブ=本番/アリーナ(kfreqaiと同じ)。選択はURL(?view=arena / ?agent=A)で持ち、実リンクで
+// 遷移するのでJSに依存せず必ず選べる。VIEW/AGENTはPHPが現在のURLから初期化する。
+let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo json_encode($kfxai_agent); ?>;
 function arenaInvestors(d){
   return (d.strategy_performance||[]).filter(x=>x.arena===true)
     .sort((a,b)=>String(a.strategy).localeCompare(String(b.strategy)));
@@ -361,12 +367,8 @@ function renderArena(d){
   document.querySelector('#leaderboard').innerHTML=invs.map(x=>{
     const wr=x.trades?Math.round(100*x.wins/x.trades):null;const st=x.status||'active';
     const book=(x.subs&&x.subs.length)?x.subs.join('+'):'';
-    return `<tr><td><a href="#" class="agentlink" data-agent="${esc(x.strategy)}" style="font-weight:700;color:var(--indigo);text-decoration:none">${esc(x.strategy)}</a>${book?` <span style="opacity:.65;font-size:11px">${esc(book)}</span>`:''}</td><td class="${st==='suspended'?'down':'up'}">${st==='suspended'?'停止(DD超過)':'稼働中'}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${x.open_now||0} / ${x.max_positions??cap??'-'}</td></tr>`;
+    return `<tr><td><a href="?agent=${encodeURIComponent(x.strategy)}" style="font-weight:700;color:var(--indigo);text-decoration:none">▶ ${esc(x.strategy)}</a>${book?` <span style="opacity:.65;font-size:11px">${esc(book)}</span>`:''}</td><td class="${st==='suspended'?'down':'up'}">${st==='suspended'?'停止(DD超過)':'稼働中'}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${x.open_now||0} / ${x.max_positions??cap??'-'}</td></tr>`;
   }).join('')||'<tr><td colspan="9">まだ取引がありません。</td></tr>';
-  document.querySelectorAll('.agentlink').forEach(a=>a.addEventListener('click',e=>{
-    e.preventDefault();AGENT=a.dataset.agent;VIEW='agent';applyView();
-    window.scrollTo({top:0,behavior:'smooth'});
-  }));
 }
 
 function applyView(){
@@ -380,18 +382,11 @@ function applyView(){
   if(VIEW==='agent'&&AGENT){
     const row=laneRow(d,AGENT);const book=(row.subs&&row.subs.length)?row.subs.join('+'):'-';
     banner.style.display='block';
-    banner.innerHTML=`🏟 アリーナの投資家 <b>${esc(AGENT)}</b>（戦略: ${esc(book)}・予算${yen.format(d.agent_budget_jpy||0)}・枠${d.max_positions}）を表示中 — <a href="#" id="toArena" style="color:var(--indigo);font-weight:700">アリーナ一覧へ</a> / <a href="#" id="toHonban" style="color:var(--indigo);font-weight:700">本番に戻る</a>`;
-    document.querySelector('#toArena').addEventListener('click',e=>{e.preventDefault();VIEW='arena';applyView();});
-    document.querySelector('#toHonban').addEventListener('click',e=>{e.preventDefault();VIEW='honban';AGENT=null;applyView();});
+    banner.innerHTML=`🏟 アリーナの投資家 <b>${esc(AGENT)}</b>（戦略: ${esc(book)}・予算${yen.format(d.agent_budget_jpy||0)}・枠${d.max_positions}）を表示中 — <a href="?view=arena" style="color:var(--indigo);font-weight:700">アリーナ一覧へ</a> / <a href="?" style="color:var(--indigo);font-weight:700">本番に戻る</a>`;
   }else{ banner.style.display='none'; }
   if(showMain) renderMain(d);
   if(VIEW==='arena') renderArena(d);
 }
-// タブクリック(本番/アリーナ)
-document.querySelectorAll('.tabbtn').forEach(b=>b.addEventListener('click',()=>{
-  if(b.dataset.tab==='honban'){VIEW='honban';AGENT=null;}else{VIEW='arena';}
-  applyView();
-}));
 refresh();setInterval(refresh,15000);
 </script>
 </body>
