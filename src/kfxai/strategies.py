@@ -247,13 +247,20 @@ class LlmAnalyst:
             result = self._judge(instrument, candles)
         except Exception as exc:
             return _hold(instrument, self.name, f"kfxbrain error: {str(exc)[:60]}")
-        decision = str(result.get("decision") or result.get("signal") or "hold").lower()
+        # kfxbrainの本来のキーは action / rationale。旧実装のdecision/signal・reasoning
+        # だけを見ると常にNone→"hold"に落ちてCが永久に取引できなかった(2026-07-21修正)。
+        decision = str(result.get("action") or result.get("decision")
+                       or result.get("signal") or "hold").lower()
         confidence = float(result.get("confidence") or 0)
         if confidence > 1:  # 0-100スケールで返る実装もある
             confidence /= 100.0
         pip = pip_size_of(instrument)
         last = candles[-1].close
-        reason = str(result.get("reasoning") or result.get("reason") or "")[:120]
+        raw_reason = (result.get("rationale") or result.get("reasoning")
+                      or result.get("reason") or "")
+        if isinstance(raw_reason, (list, tuple)):
+            raw_reason = " / ".join(str(x) for x in raw_reason)
+        reason = str(raw_reason)[:120]
         feats = {"llm_confidence": confidence}
         if decision in ("buy", "long") and confidence >= 0.55:
             return Signal(instrument=instrument, action="buy", probability_up=1.0,
@@ -348,18 +355,95 @@ REGISTRY = {
 }
 
 
-def build_strategies(settings: Settings) -> list:
-    names = [n.strip() for n in os.environ.get(
-        "KFXAI_ARENA_STRATEGIES", "session,donchian,rsi_meanrev,ma_cross").split(",") if n.strip()]
-    out = []
-    for n in names:
+class Investor:
+    """1投資家 = 予算30万・枠3を持つ実験レーン(2026-07-18)。
+
+    本番の直列バックテストが遅すぎるので、本番の横で投資家を並走させ「試行を並列化」
+    するのが目的。投資家は別人格が複数のサブ戦略を回す"進化する複合戦略"にすぎず、
+    名前(A/B/C)に意味はない・戦略を固定しない(どんどん変わり増える)。どのサブが信号を
+    出しても建てる(優先順)。成績は**投資家単位**で評価し、戦略別の帰属分析はしない
+    (本番同様、複合的要因で取引しているため切り分け不能)。良い投資家のロジックを本番へ。
+
+    サブ戦略の入れ替え = 私がそのレーンで試行錯誤する行為。env KFXAI_INVESTOR_<X> で
+    サブ集合を上書きできる(例: KFXAI_INVESTOR_A="session,dual_thrust")。
+    """
+
+    def __init__(self, name: str, subs: list) -> None:
+        self.name = name
+        self.subs = subs
+        # 決済ルールは投資家単位に集約(seedは同質。混在時は保守的側=長く持たせSL/TP任せ)
+        self.daily_limit = all(getattr(s, "daily_limit", False) for s in subs)
+        self.close_on_session_end = any(getattr(s, "close_on_session_end", False) for s in subs)
+        holds = [s.max_hold_minutes for s in subs if getattr(s, "max_hold_minutes", None) is not None]
+        self.max_hold_minutes = max(holds) if holds else None
+        # 対象ペア: 全サブが制限を持つ時のみ和集合で制限、1つでも無制限なら無制限
+        if subs and all(getattr(s, "instruments", None) for s in subs):
+            insts: set = set()
+            for s in subs:
+                insts |= set(s.instruments)
+            self.instruments = tuple(sorted(insts))
+        else:
+            self.instruments = None
+
+    def available(self) -> bool:
+        return all(not hasattr(s, "available") or s.available() for s in self.subs)
+
+    def signal(self, instrument, candles, settings, now, already_open) -> Signal:
+        if already_open:
+            return _hold(instrument, self.name, "position already open")
+        # 全サブがholdの時は、最後に評価したサブのhold理由を残す(診断できるように)。
+        last_hold = "no sub-strategy signal"
+        for sub in self.subs:
+            si = getattr(sub, "instruments", None)
+            if si and instrument not in si:
+                continue
+            sig = sub.signal(instrument, candles, settings, now, already_open)
+            if sig.action != "hold":
+                # model=投資家名(評価は投資家単位)。どのサブ由来かはreasonにだけ残す(表示用)
+                return Signal(**{**sig.__dict__, "model": self.name,
+                                 "reason": f"[{sub.name}] {sig.reason}"})
+            last_hold = f"[{sub.name}] {sig.reason}"
+        return _hold(instrument, self.name, last_hold)
+
+
+# 3投資家レーン。名前(A/B/C)に意味は無く、seedは進化の出発点にすぎない(固定しない)。
+INVESTOR_DEFS = [
+    ("A", ["session"]),
+    ("B", ["dual_thrust"]),
+    ("C", ["llm_analyst"]),
+]
+
+
+def _resolve_subs(label: str, subnames: list) -> list:
+    subs = []
+    for n in subnames:
         cls = REGISTRY.get(n)
         if cls is None:
-            print(f"[arena] unknown strategy '{n}' skipped")
+            print(f"[{label}] unknown strategy '{n}' skipped")
             continue
-        strategy = cls()
-        if hasattr(strategy, "available") and not strategy.available():
-            print(f"[arena] {n} disabled (dependency unavailable)")
+        s = cls()
+        if hasattr(s, "available") and not s.available():
+            print(f"[{label}] {n} disabled (dependency unavailable)")
             continue
-        out.append(strategy)
+        subs.append(s)
+    return subs
+
+
+def build_strategies(settings: Settings) -> list:
+    """アリーナ3投資家(A/B/C)。名前に意味はなく中身は進化する複合戦略。"""
+    out = []
+    for name, default_subs in INVESTOR_DEFS:
+        subnames = [n.strip() for n in os.environ.get(
+            f"KFXAI_INVESTOR_{name}", ",".join(default_subs)).split(",") if n.strip()]
+        subs = _resolve_subs(f"arena {name}", subnames)
+        if subs:
+            out.append(Investor(name, subs))
     return out
+
+
+def build_production(settings: Settings) -> list:
+    """本番レーン(kfreqaiの本番botに相当)。アリーナの成果を昇格していく先。
+    現行の本番戦略はseed=session breakout(1.6年検証済み)。中身はenv KFXAI_PRODUCTION で進化。"""
+    subnames = [n.strip() for n in os.environ.get("KFXAI_PRODUCTION", "session").split(",") if n.strip()]
+    subs = _resolve_subs("本番", subnames)
+    return [Investor("本番", subs)] if subs else []
