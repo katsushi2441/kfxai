@@ -194,10 +194,18 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
       </div>
     </section>
 
-    <!-- レーン選択タブ(本番/投資家A/B/C)。選ぶと下の画面全体が選択レーンのデータになる(kfreqaiと同じUX)。 -->
-    <div class="tabs" id="laneTabs"><button type="button" class="tabbtn active" data-lane="本番">本番</button></div>
+    <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。アリーナで投資家名を押すと、本番と同じ画面が
+         その投資家のデータで開く(ドリルイン)。 -->
+    <div class="tabs">
+      <button type="button" class="tabbtn active" data-tab="honban">本番（メイン戦略）</button>
+      <button type="button" class="tabbtn" data-tab="arena">アリーナ（戦略エージェント）</button>
+    </div>
 
-    <div id="pane-lane" class="pane">
+    <!-- 投資家を選択中のバナー(kfreqaiと同じ) -->
+    <div id="agentBanner" style="display:none;background:rgba(0,172,193,.10);border:1px solid rgba(0,172,193,.45);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:14px"></div>
+
+    <!-- メイン画面: 本番と、選択した投資家で共用(kfreqaiと同じ・データだけ差し替わる) -->
+    <div id="pane-main" class="pane">
       <p id="laneCaption" style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 12px"></p>
       <section>
         <div class="grid" id="laneCards">
@@ -216,15 +224,26 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
           <tbody id="laneTrades"><tr><td colspan="10">読み込み中</td></tr></tbody>
         </table></div>
       </section>
+      <section>
+        <h2>直近の判断（市場共通・全レーンで共有）</h2>
+        <div class="tscroll"><table>
+          <thead><tr><th>時刻</th><th>通貨ペア</th><th>判断</th><th>P(up)</th><th>スプレッド</th><th>実行</th><th>理由</th></tr></thead>
+          <tbody id="decisions"><tr><td colspan="7">読み込み中</td></tr></tbody>
+        </table></div>
+      </section>
     </div>
 
-    <section>
-      <h2>直近の判断（市場共通・全レーンで共有）</h2>
-      <div class="tscroll"><table>
-        <thead><tr><th>時刻</th><th>通貨ペア</th><th>判断</th><th>P(up)</th><th>スプレッド</th><th>実行</th><th>理由</th></tr></thead>
-        <tbody id="decisions"><tr><td colspan="7">読み込み中</td></tr></tbody>
-      </table></div>
-    </section>
+    <!-- アリーナ一覧: 投資家リーダーボード。名前クリックで上のメイン画面をその投資家に切替 -->
+    <div id="pane-arena" class="pane" style="display:none">
+      <section>
+        <h2>投資家レーン（本番の横で並列に試行 — 各: 枠3・予算30万円・DD10%で新規停止）</h2>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 10px">別々の投資家が複数戦略を回す実験レーン(名前A/B/Cに意味はなく中身は進化する)。<b>投資家名をクリックすると、本番と同じ画面でその投資家のデータを表示</b>します。成績は投資家単位で評価し、良いロジックを本番へ昇格する。</p>
+        <div class="tscroll"><table>
+          <thead><tr><th>投資家</th><th>状態</th><th>残高</th><th>収益率</th><th>本日</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>枠(使用/上限)</th></tr></thead>
+          <tbody id="leaderboard"><tr><td colspan="9">読み込み中</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
 
     <section>
       <h2>最新記事（Kurage 暗号資産/FX AI 自動取引日記）</h2>
@@ -292,7 +311,7 @@ async function refresh(){
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
     // レーン(本番/投資家A/B/C)のタブ+選択レーンの画面を描画。データは全レーン分が
     // この1レスポンスに入っているので、タブ切替はクライアント側だけで完結する。
-    LAST=d; renderLanes();
+    LAST=d; applyView();
     const err=d.last_error?.error;box.style.display=err?'block':'none';box.textContent=err?`last error: ${err}`:'';
   }catch(error){
     document.querySelector('#systemState').textContent='OFFLINE';
@@ -300,32 +319,27 @@ async function refresh(){
     box.style.display='block';box.textContent=`backend error: ${error.message}`;
   }
 }
-// レーン選択(本番/投資家A/B/C)。選ぶと画面全体が選択レーンのデータになる(kfreqaiと同じUX)。
-let LAST=null, LANE=null;
-function laneRows(d){
-  // 本番→投資家(A/B/C)の順。過去の単体戦略(session等・arena===false)はタブに出さない。
-  const perf=d.strategy_performance||[];
-  const inv=perf.filter(x=>x.arena===true).sort((a,b)=>String(a.strategy).localeCompare(String(b.strategy)));
-  return perf.filter(x=>x.production).concat(inv);
+// タブ=本番/アリーナ(kfreqaiと同じ)。アリーナで投資家名クリック→本番と同じ画面を
+// その投資家データで表示(ドリルイン)。dはrefresh()が毎回LASTに格納する。
+let LAST=null, VIEW='honban', AGENT=null;
+function arenaInvestors(d){
+  return (d.strategy_performance||[]).filter(x=>x.arena===true)
+    .sort((a,b)=>String(a.strategy).localeCompare(String(b.strategy)));
 }
-function renderLanes(){
-  const d=LAST; if(!d) return;
-  const lanes=laneRows(d);
-  const names=lanes.map(x=>x.strategy);
-  if(LANE===null||!names.includes(LANE)) LANE=names[0]||'本番';
-  // タブ生成(本番/A/B/C)
-  const tabs=document.querySelector('#laneTabs');
-  tabs.innerHTML=lanes.map(x=>{const lbl=x.production?'本番':x.strategy;return `<button type="button" class="tabbtn${x.strategy===LANE?' active':''}" data-lane="${esc(x.strategy)}">${esc(lbl)}</button>`;}).join('')||'<button type="button" class="tabbtn active" data-lane="本番">本番</button>';
-  tabs.querySelectorAll('.tabbtn').forEach(b=>b.addEventListener('click',()=>{LANE=b.dataset.lane;renderLanes();}));
-  const row=lanes.find(x=>x.strategy===LANE)||lanes[0]||{};
+function prodName(d){const p=(d.strategy_performance||[]).find(x=>x.production);return p?p.strategy:'本番';}
+function laneRow(d,name){return (d.strategy_performance||[]).find(x=>x.strategy===name)||{};}
+
+// 本番と選択投資家で共用するメイン画面(データだけ差し替え)
+function renderMain(d){
+  const laneName=(VIEW==='agent'&&AGENT)?AGENT:prodName(d);
+  const row=laneRow(d,laneName);
   const cap=d.max_positions, budget=d.agent_budget_jpy;
-  const label=row.production?'本番':(row.strategy||'-');
-  // 説明文
+  const isProd=!!row.production;
+  const label=isProd?'本番':(row.strategy||laneName||'-');
   const subs=(row.subs&&row.subs.length)?row.subs.join(' + '):'-';
-  document.querySelector('#laneCaption').innerHTML=row.production
+  document.querySelector('#laneCaption').innerHTML=isProd
     ? '本番レーン — 検証済みの本番戦略。アリーナで良い成果を出したロジックを昇格していく先。'
-    : `投資家${esc(label)}（アリーナ）— 本番の横で並列に試行する実験レーン。予算${budget?yen.format(budget):'-'}・枠${cap??'-'}・DD10%で新規停止。名前A/B/Cに意味はなく中身は進化する。回している戦略: <b>${esc(subs)}</b>。成績は投資家単位で評価。`;
-  // 上部カード(選択レーン)
+    : `投資家${esc(label)}（アリーナ）— 本番の横で並列に試行する実験レーン。予算${budget?yen.format(budget):'-'}・枠${cap??'-'}・DD10%で新規停止。名前A/B/Cに意味はなく中身は進化する。回している戦略: <b>${esc(subs)}</b>。`;
   const setv=(id,v,cls)=>{const e=document.querySelector(id);if(!e)return;e.textContent=v;if(cls!=null)e.className='value '+cls;};
   const wr=row.trades?Math.round(100*row.wins/row.trades):null;
   setv('#lnEquity',row.equity_jpy==null?'-':yen.format(row.equity_jpy));
@@ -334,13 +348,50 @@ function renderLanes(){
   setv('#lnPnl',yen.format(row.pnl_jpy||0),pnlClass(row.pnl_jpy));
   setv('#lnRecord',`${row.trades||0} / ${wr==null?'-':wr+'%'}`);
   setv('#lnSlots',`${row.open_now||0} / ${row.max_positions??cap??'-'}`,((row.open_now||0)>=(row.max_positions??cap)?'down':''));
-  // 状態バッジ(停止/稼働)を残高カードに反映しないが、説明で補足済み
   document.querySelector('#laneLedgerTitle').textContent=`${label}の取引台帳`;
-  // 台帳: 選択レーンのstrategyで絞る
   const tradeRow=x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`;
-  const mine=(d.recent_trades||[]).filter(x=>x.strategy===LANE);
+  const mine=(d.recent_trades||[]).filter(x=>x.strategy===laneName);
   document.querySelector('#laneTrades').innerHTML=mine.slice(0,40).map(tradeRow).join('')||`<tr><td colspan="10">${esc(label)}の取引はまだありません。</td></tr>`;
 }
+
+// アリーナ一覧(投資家リーダーボード)。名前クリックでメイン画面をその投資家に切替。
+function renderArena(d){
+  const cap=d.max_positions;
+  const invs=arenaInvestors(d);
+  document.querySelector('#leaderboard').innerHTML=invs.map(x=>{
+    const wr=x.trades?Math.round(100*x.wins/x.trades):null;const st=x.status||'active';
+    const book=(x.subs&&x.subs.length)?x.subs.join('+'):'';
+    return `<tr><td><a href="#" class="agentlink" data-agent="${esc(x.strategy)}" style="font-weight:700;color:var(--indigo);text-decoration:none">${esc(x.strategy)}</a>${book?` <span style="opacity:.65;font-size:11px">${esc(book)}</span>`:''}</td><td class="${st==='suspended'?'down':'up'}">${st==='suspended'?'停止(DD超過)':'稼働中'}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${x.open_now||0} / ${x.max_positions??cap??'-'}</td></tr>`;
+  }).join('')||'<tr><td colspan="9">まだ取引がありません。</td></tr>';
+  document.querySelectorAll('.agentlink').forEach(a=>a.addEventListener('click',e=>{
+    e.preventDefault();AGENT=a.dataset.agent;VIEW='agent';applyView();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+}
+
+function applyView(){
+  const d=LAST; if(!d) return;
+  const showMain=(VIEW==='honban'||VIEW==='agent');
+  document.querySelector('#pane-main').style.display=showMain?'':'none';
+  document.querySelector('#pane-arena').style.display=(VIEW==='arena')?'':'none';
+  document.querySelectorAll('.tabbtn').forEach(b=>{const t=b.dataset.tab;
+    b.classList.toggle('active',(t==='honban'&&VIEW==='honban')||(t==='arena'&&(VIEW==='arena'||VIEW==='agent')));});
+  const banner=document.querySelector('#agentBanner');
+  if(VIEW==='agent'&&AGENT){
+    const row=laneRow(d,AGENT);const book=(row.subs&&row.subs.length)?row.subs.join('+'):'-';
+    banner.style.display='block';
+    banner.innerHTML=`🏟 アリーナの投資家 <b>${esc(AGENT)}</b>（戦略: ${esc(book)}・予算${yen.format(d.agent_budget_jpy||0)}・枠${d.max_positions}）を表示中 — <a href="#" id="toArena" style="color:var(--indigo);font-weight:700">アリーナ一覧へ</a> / <a href="#" id="toHonban" style="color:var(--indigo);font-weight:700">本番に戻る</a>`;
+    document.querySelector('#toArena').addEventListener('click',e=>{e.preventDefault();VIEW='arena';applyView();});
+    document.querySelector('#toHonban').addEventListener('click',e=>{e.preventDefault();VIEW='honban';AGENT=null;applyView();});
+  }else{ banner.style.display='none'; }
+  if(showMain) renderMain(d);
+  if(VIEW==='arena') renderArena(d);
+}
+// タブクリック(本番/アリーナ)
+document.querySelectorAll('.tabbtn').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.tab==='honban'){VIEW='honban';AGENT=null;}else{VIEW='arena';}
+  applyView();
+}));
 refresh();setInterval(refresh,15000);
 </script>
 </body>
