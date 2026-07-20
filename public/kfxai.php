@@ -104,6 +104,9 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
   .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .up { color: var(--up); } .down { color: var(--down); }
   section { margin-bottom: 28px; }
+  .tabs { display:flex; gap:8px; margin:4px 0 20px; border-bottom:1px solid var(--border); }
+  .tabbtn { border:none; background:none; padding:10px 16px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabbtn.active { color:var(--indigo); border-bottom-color:var(--indigo); }
   section h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; }
   .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; min-width: 0; }
@@ -191,27 +194,35 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
       </div>
     </section>
 
+    <!-- レーン選択タブ(本番/投資家A/B/C)。選ぶと下の画面全体が選択レーンのデータになる(kfreqaiと同じUX)。 -->
+    <div class="tabs" id="laneTabs"><button type="button" class="tabbtn active" data-lane="本番">本番</button></div>
+
+    <div id="pane-lane" class="pane">
+      <p id="laneCaption" style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 12px"></p>
+      <section>
+        <div class="grid" id="laneCards">
+          <div class="card"><div class="label">残高</div><div class="value" id="lnEquity">-</div></div>
+          <div class="card"><div class="label">収益率</div><div class="value" id="lnReturn">-</div></div>
+          <div class="card"><div class="label">本日損益</div><div class="value" id="lnToday">¥0</div></div>
+          <div class="card"><div class="label">累計損益</div><div class="value" id="lnPnl">¥0</div></div>
+          <div class="card"><div class="label">決済数 / 勝率</div><div class="value" id="lnRecord">-</div></div>
+          <div class="card"><div class="label">ポジション枠</div><div class="value" id="lnSlots">-</div></div>
+        </div>
+      </section>
+      <section>
+        <h2 id="laneLedgerTitle">取引台帳</h2>
+        <div class="tscroll"><table>
+          <thead><tr><th>ID</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建玉日時(JST)</th><th>決済日時(JST)</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
+          <tbody id="laneTrades"><tr><td colspan="10">読み込み中</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
+
     <section>
-      <h2>直近の判断</h2>
+      <h2>直近の判断（市場共通・全レーンで共有）</h2>
       <div class="tscroll"><table>
         <thead><tr><th>時刻</th><th>通貨ペア</th><th>判断</th><th>P(up)</th><th>スプレッド</th><th>実行</th><th>理由</th></tr></thead>
         <tbody id="decisions"><tr><td colspan="7">読み込み中</td></tr></tbody>
-      </table></div>
-    </section>
-
-    <section>
-      <h2>戦略実行エージェント（各: 枠3・予算30万円・DD10%で新規停止）</h2>
-      <div class="tscroll"><table>
-        <thead><tr><th>エージェント</th><th>状態</th><th>残高</th><th>収益率</th><th>本日</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>枠(使用/上限)</th></tr></thead>
-        <tbody id="leaderboard"><tr><td colspan="9">読み込み中</td></tr></tbody>
-      </table></div>
-    </section>
-
-    <section>
-      <h2>paper取引台帳</h2>
-      <div class="tscroll"><table>
-        <thead><tr><th>ID</th><th>戦略</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建玉日時(JST)</th><th>決済日時(JST)</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
-        <tbody id="trades"><tr><td colspan="11">読み込み中</td></tr></tbody>
       </table></div>
     </section>
 
@@ -259,15 +270,15 @@ async function refresh(){
     document.querySelector('#regime').textContent=d.regime?.regime||'-';
     document.querySelector('#directive').textContent=d.directive?.directive||'-';
     document.querySelector('#brain').textContent=d.backend||'-';
+    // 上部の枠・累計損益はシステム全体(全レーン合算)。レーン別の内訳は下のタブで見る。
     const pnl=d.performance?.pnl_jpy||0;
     const pnlEl=document.querySelector('#pnl');pnlEl.textContent=yen.format(pnl);pnlEl.className='value '+pnlClass(pnl);
     const slotsEl=document.querySelector('#slots');const used=(d.open_trades||[]).length;const cap=d.max_positions;
-    const agents=(d.strategy_performance||[]).filter(x=>x.arena!==false);
-    if(d.strategy_mode==='arena'&&agents.length){
-      const totalCap=agents.length*(cap||0);
-      slotsEl.innerHTML=`${used} / ${totalCap} 使用<div style="font-size:.55em;font-weight:normal;line-height:1.7;margin-top:2px;white-space:normal;overflow:visible">`+
-        agents.map(x=>`<span style="white-space:nowrap">${esc(x.strategy)} <b class="${(x.open_now||0)>=cap?'down':''}">${x.open_now||0}/${cap}</b></span>`).join(' ')+'</div>';
-      slotsEl.className='value';slotsEl.style.whiteSpace='normal';slotsEl.style.overflow='visible';
+    const laneCount=(d.strategy_performance||[]).filter(x=>x.production||x.arena===true).length||1;
+    if(d.strategy_mode==='arena'){
+      const totalCap=laneCount*(cap||0);
+      slotsEl.textContent=`${used} / ${totalCap} 使用（${laneCount}レーン合算）`;
+      slotsEl.className='value '+(totalCap&&used>=totalCap?'down':'');
     }else{
       slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
       slotsEl.className='value '+(cap&&used>=cap?'down':'');
@@ -279,14 +290,56 @@ async function refresh(){
     document.querySelector('#record').textContent=`${p.closed_trades||0} trades / ${((p.win_rate||0)*100).toFixed(1)}% win`;
     document.querySelector('#recordDetail').textContent=`wins ${p.wins||0} / 累計損益 ${yen.format(p.pnl_jpy||0)}`;
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
-    document.querySelector('#trades').innerHTML=(d.recent_trades||[]).slice(0,40).map(x=>`<tr><td>${x.id}</td><td>${esc(x.strategy||'-')}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`).join('')||'<tr><td colspan="11">paper取引はまだありません。</td></tr>';
-    document.querySelector('#leaderboard').innerHTML=(d.strategy_performance||[]).map(x=>{const wr=x.trades?Math.round(100*x.wins/x.trades):null;const st=x.status||'active';const legacy=x.arena===false;const slotCell=legacy?`${x.open_now||0}`:`${x.open_now||0} / ${x.max_positions??d.max_positions??'-'}`;return `<tr><td>${esc(x.strategy)}${legacy?' <span style="opacity:.6">(旧)</span>':''}</td><td class="${legacy?'':(st==='suspended'?'down':'up')}">${legacy?'引退':(st==='suspended'?'停止(DD超過)':'稼働中')}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${slotCell}</td></tr>`;}).join('')||'<tr><td colspan="9">まだ取引がありません。</td></tr>';
+    // レーン(本番/投資家A/B/C)のタブ+選択レーンの画面を描画。データは全レーン分が
+    // この1レスポンスに入っているので、タブ切替はクライアント側だけで完結する。
+    LAST=d; renderLanes();
     const err=d.last_error?.error;box.style.display=err?'block':'none';box.textContent=err?`last error: ${err}`:'';
   }catch(error){
     document.querySelector('#systemState').textContent='OFFLINE';
     document.querySelector('#statusDot').classList.add('bad');
     box.style.display='block';box.textContent=`backend error: ${error.message}`;
   }
+}
+// レーン選択(本番/投資家A/B/C)。選ぶと画面全体が選択レーンのデータになる(kfreqaiと同じUX)。
+let LAST=null, LANE=null;
+function laneRows(d){
+  // 本番→投資家(A/B/C)の順。過去の単体戦略(session等・arena===false)はタブに出さない。
+  const perf=d.strategy_performance||[];
+  const inv=perf.filter(x=>x.arena===true).sort((a,b)=>String(a.strategy).localeCompare(String(b.strategy)));
+  return perf.filter(x=>x.production).concat(inv);
+}
+function renderLanes(){
+  const d=LAST; if(!d) return;
+  const lanes=laneRows(d);
+  const names=lanes.map(x=>x.strategy);
+  if(LANE===null||!names.includes(LANE)) LANE=names[0]||'本番';
+  // タブ生成(本番/A/B/C)
+  const tabs=document.querySelector('#laneTabs');
+  tabs.innerHTML=lanes.map(x=>{const lbl=x.production?'本番':x.strategy;return `<button type="button" class="tabbtn${x.strategy===LANE?' active':''}" data-lane="${esc(x.strategy)}">${esc(lbl)}</button>`;}).join('')||'<button type="button" class="tabbtn active" data-lane="本番">本番</button>';
+  tabs.querySelectorAll('.tabbtn').forEach(b=>b.addEventListener('click',()=>{LANE=b.dataset.lane;renderLanes();}));
+  const row=lanes.find(x=>x.strategy===LANE)||lanes[0]||{};
+  const cap=d.max_positions, budget=d.agent_budget_jpy;
+  const label=row.production?'本番':(row.strategy||'-');
+  // 説明文
+  const subs=(row.subs&&row.subs.length)?row.subs.join(' + '):'-';
+  document.querySelector('#laneCaption').innerHTML=row.production
+    ? '本番レーン — 検証済みの本番戦略。アリーナで良い成果を出したロジックを昇格していく先。'
+    : `投資家${esc(label)}（アリーナ）— 本番の横で並列に試行する実験レーン。予算${budget?yen.format(budget):'-'}・枠${cap??'-'}・DD10%で新規停止。名前A/B/Cに意味はなく中身は進化する。回している戦略: <b>${esc(subs)}</b>。成績は投資家単位で評価。`;
+  // 上部カード(選択レーン)
+  const setv=(id,v,cls)=>{const e=document.querySelector(id);if(!e)return;e.textContent=v;if(cls!=null)e.className='value '+cls;};
+  const wr=row.trades?Math.round(100*row.wins/row.trades):null;
+  setv('#lnEquity',row.equity_jpy==null?'-':yen.format(row.equity_jpy));
+  setv('#lnReturn',(row.return_pct==null?'-':row.return_pct.toFixed(2)+'%'),pnlClass(row.return_pct));
+  setv('#lnToday',yen.format(row.today_pnl||0),pnlClass(row.today_pnl));
+  setv('#lnPnl',yen.format(row.pnl_jpy||0),pnlClass(row.pnl_jpy));
+  setv('#lnRecord',`${row.trades||0} / ${wr==null?'-':wr+'%'}`);
+  setv('#lnSlots',`${row.open_now||0} / ${row.max_positions??cap??'-'}`,((row.open_now||0)>=(row.max_positions??cap)?'down':''));
+  // 状態バッジ(停止/稼働)を残高カードに反映しないが、説明で補足済み
+  document.querySelector('#laneLedgerTitle').textContent=`${label}の取引台帳`;
+  // 台帳: 選択レーンのstrategyで絞る
+  const tradeRow=x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`;
+  const mine=(d.recent_trades||[]).filter(x=>x.strategy===LANE);
+  document.querySelector('#laneTrades').innerHTML=mine.slice(0,40).map(tradeRow).join('')||`<tr><td colspan="10">${esc(label)}の取引はまだありません。</td></tr>`;
 }
 refresh();setInterval(refresh,15000);
 </script>
