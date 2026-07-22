@@ -190,8 +190,8 @@ def send_mail(title: str, body_markdown: str, to_addr: str) -> None:
 
 
 def crosspost_email(title: str, body_markdown: str, permalink: str) -> None:
-    targets = {"hatena": os.environ.get("HATENA_POST_EMAIL", ""),
-               "blogger": os.environ.get("BLOGGER_POST_EMAIL", "")}
+    # Bloggerはメール単位スパム判定に引っかかりやすいため転載しない(2026-07-22方針)。はてなのみ。
+    targets = {"hatena": os.environ.get("HATENA_POST_EMAIL", "")}
     backlink = f"\n\n---\n\nより詳しいデータは元記事をどうぞ: [{title}]({permalink})"
     for channel, to_addr in targets.items():
         if not to_addr:
