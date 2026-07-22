@@ -89,11 +89,13 @@ def _agent_performance() -> list[dict[str, Any]]:
         row["budget_jpy"] = budget
         row["equity_jpy"] = round(budget + pnl)
         row["return_pct"] = round(100 * pnl / budget, 3) if budget else 0
-        row["status"] = "suspended" if pnl <= -dd_limit else "active"
         row["production"] = name in production_names
         row["arena"] = name in configured and name not in production_names
         row["max_positions"] = settings.max_positions if name in configured else None
         row["subs"] = configured.get(name, {}).get("subs", [])
+        # 停止レーン=構成済みだが中身(subs)が空。新規取引はせず過去成績のみ累計に残す。
+        row["stopped"] = bool(name in configured and not row["subs"] and name not in production_names)
+        row["status"] = "stopped" if row["stopped"] else ("suspended" if pnl <= -dd_limit else "active")
     # 本番→アリーナ(損益順)→履歴 の順。
     rows.sort(key=lambda r: (not r["production"], not r["arena"], -float(r["pnl_jpy"] or 0)))
     return rows

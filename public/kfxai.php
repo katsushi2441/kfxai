@@ -243,7 +243,7 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
     <div id="pane-arena" class="pane" style="<?php echo $kfxai_view === 'arena' ? '' : 'display:none;'; ?>">
       <section>
         <h2>投資家レーン（本番の横で並列に試行 — 各: 枠3・予算30万円・DD10%で新規停止）</h2>
-        <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 10px">別々の投資家が複数戦略を回す実験レーン(名前A/B/Cに意味はなく中身は進化する)。<b>投資家名をクリックすると、本番と同じ画面でその投資家のデータを表示</b>します。成績は投資家単位で評価し、良いロジックを本番へ昇格する。</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 10px">別々の投資家が複数戦略を回す実験レーン(名前に意味はなく中身は進化する)。<b>投資家名をクリックすると、本番と同じ画面でその投資家のデータを表示</b>します。良いロジックは本番へ昇格し、そのレーンは「停止(手動)」= 新規取引せず過去成績のみ残す会計用レーンになります。<b>上部の累計損益 = 本番 + 全レーン(停止含む)の累計損益の合計</b>です。</p>
         <div class="tscroll"><table>
           <thead><tr><th>投資家</th><th>状態</th><th>残高</th><th>収益率</th><th>本日</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>枠(使用/上限)</th></tr></thead>
           <tbody id="leaderboard"><tr><td colspan="9">読み込み中</td></tr></tbody>
@@ -378,8 +378,12 @@ function renderArena(d){
   const invs=arenaInvestors(d);
   document.querySelector('#leaderboard').innerHTML=invs.map(x=>{
     const wr=x.trades?Math.round(100*x.wins/x.trades):null;const st=x.status||'active';
-    const book=(x.subs&&x.subs.length)?x.subs.join('+'):'';
-    return `<tr><td><a href="?agent=${encodeURIComponent(x.strategy)}" style="font-weight:700;color:var(--indigo);text-decoration:none">▶ ${esc(x.strategy)}</a>${book?` <span style="opacity:.65;font-size:11px">${esc(book)}</span>`:''}</td><td class="${st==='suspended'?'down':'up'}">${st==='suspended'?'停止(DD超過)':'稼働中'}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${x.open_now||0} / ${x.max_positions??cap??'-'}</td></tr>`;
+    const stopped=(st==='stopped');
+    const book=(x.subs&&x.subs.length)?x.subs.join('+'):(stopped?'(停止・会計のみ)':'');
+    const stTxt=stopped?'停止(手動)':(st==='suspended'?'停止(DD超過)':'稼働中');
+    const stCls=(st==='active')?'up':'down';
+    const slots=stopped?'-':`${x.open_now||0} / ${x.max_positions??cap??'-'}`;
+    return `<tr${stopped?' style="opacity:.6"':''}><td><a href="?agent=${encodeURIComponent(x.strategy)}" style="font-weight:700;color:var(--indigo);text-decoration:none">▶ ${esc(x.strategy)}</a>${book?` <span style="opacity:.65;font-size:11px">${esc(book)}</span>`:''}</td><td class="${stCls}">${stTxt}</td><td>${x.equity_jpy==null?'-':yen.format(x.equity_jpy)}</td><td class="${pnlClass(x.return_pct)}">${x.return_pct==null?'-':x.return_pct.toFixed(2)+'%'}</td><td class="${pnlClass(x.today_pnl)}">${yen.format(x.today_pnl||0)}</td><td>${x.trades}</td><td>${wr==null?'-':wr+'%'}</td><td class="${pnlClass(x.pnl_jpy)}">${yen.format(x.pnl_jpy||0)}</td><td>${slots}</td></tr>`;
   }).join('')||'<tr><td colspan="9">まだ取引がありません。</td></tr>';
 }
 

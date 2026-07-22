@@ -406,12 +406,18 @@ class Investor:
         return _hold(instrument, self.name, last_hold)
 
 
-# 3投資家レーン。名前(A/B/C)に意味は無く、seedは進化の出発点にすぎない(固定しない)。
+# 投資家レーン。名前(A/B/…)に意味は無く、seedは進化の出発点にすぎない(固定しない)。
+# 良かったレーンは本番へ昇格し、そのレーンは停止(会計のみ)、空いた分は新レーンで次を試す。
+# 停止レーン=subsが空。過去の取引履歴・損益は残り累計に含まれるが、新規取引はしない。
 INVESTOR_DEFS = [
-    ("A", ["session"]),
-    ("B", ["dual_thrust"]),
-    ("C", ["llm_analyst"]),
+    ("A", []),  # 旧session,dual_thrust。dual_thrustを本番昇格につき停止(2026-07-22)
+    ("B", []),  # 旧dual_thrust。本番昇格につき停止
+    ("C", []),  # 旧llm_analyst。方向予測=全滅確定につき停止・退役
+    ("D", ["rsi_meanrev"]),  # 新規: 逆張り
+    ("E", ["donchian"]),     # 新規: 別ブレイク
+    ("F", ["ma_cross"]),     # 新規: トレンド
 ]
+_DEFAULT_ROSTER = [name for name, _ in INVESTOR_DEFS]
 
 
 def _resolve_subs(label: str, subnames: list) -> list:
@@ -430,14 +436,19 @@ def _resolve_subs(label: str, subnames: list) -> list:
 
 
 def build_strategies(settings: Settings) -> list:
-    """アリーナ3投資家(A/B/C)。名前に意味はなく中身は進化する複合戦略。"""
+    """アリーナ投資家レーン。レーン名一覧は KFXAI_INVESTORS(既定=INVESTOR_DEFSの順)。
+    各レーンの中身は KFXAI_INVESTOR_<name>(既定=INVESTOR_DEFS)。空=停止レーン
+    (subsなし=新規取引せず、過去成績のみ累計に残す会計用レーン)。停止レーンも
+    レーンとして返す(ダッシュボードの累計分解に含めるため)。"""
+    defaults = dict(INVESTOR_DEFS)
+    roster = [n.strip() for n in os.environ.get(
+        "KFXAI_INVESTORS", ",".join(_DEFAULT_ROSTER)).split(",") if n.strip()]
     out = []
-    for name, default_subs in INVESTOR_DEFS:
-        subnames = [n.strip() for n in os.environ.get(
-            f"KFXAI_INVESTOR_{name}", ",".join(default_subs)).split(",") if n.strip()]
+    for name in roster:
+        raw = os.environ.get(f"KFXAI_INVESTOR_{name}", ",".join(defaults.get(name, [])))
+        subnames = [n.strip() for n in raw.split(",") if n.strip()]
         subs = _resolve_subs(f"arena {name}", subnames)
-        if subs:
-            out.append(Investor(name, subs))
+        out.append(Investor(name, subs))  # subsが空でも停止レーンとして登録
     return out
 
 
