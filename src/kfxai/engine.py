@@ -10,7 +10,7 @@ from .judgment import JudgmentBackend, build_backend
 from .models import Candle, Price, Signal, utc_now_iso
 from .oanda import OandaClient
 from .predictor import DirectionModel
-from .strategies import build_strategies
+from .strategies import build_production, build_strategies
 from .strategy_session import session_should_close, session_signal
 
 
@@ -60,11 +60,14 @@ class TradingEngine:
         self.client = client or OandaClient(settings)
         self.db = database or Database(settings.database_path)
         self.judgment = judgment or build_backend(settings)
-        # 戦略アリーナ(KFXAI_STRATEGY=arena): 複数戦略を並走させ戦略別台帳で競わせる
+        # KFXAI_STRATEGY=arena: kfreqaiと同じ「本番 + アリーナ3体」構造を1プロセスで並走。
+        # production=本番レーン(昇格先)、arena=投資家A/B/C、lanes=両方(取引ループは全部回す)。
+        self.production = build_production(settings) if settings.strategy == "arena" else []
         self.arena = build_strategies(settings) if settings.strategy == "arena" else []
-        self._arena_by_name = {s.name: s for s in self.arena}
-        if self.arena:
-            print(f"[arena] strategies: {[s.name for s in self.arena]}")
+        self.lanes = self.production + self.arena
+        self._arena_by_name = {s.name: s for s in self.lanes}
+        if self.lanes:
+            print(f"[lanes] 本番={[s.name for s in self.production]} arena={[s.name for s in self.arena]}")
 
     def _fetch_market(self) -> tuple[dict[str, list[Candle]], dict[str, Price], list[str]]:
         candle_map: dict[str, list[Candle]] = {}
@@ -286,7 +289,7 @@ class TradingEngine:
             # エントリー候補を作る。単独モード=銘柄ごと1信号、アリーナ=戦略×銘柄。
             now_utc = datetime.now(timezone.utc)
             today = now_utc.strftime("%Y-%m-%d")
-            if self.arena:
+            if self.lanes:
                 open_rows = self.db.open_paper_trades() if self.settings.trading_mode == "paper" else []
                 open_keys = {(t.get("strategy") or "session", t["instrument"]) for t in open_rows}
                 strat_counts: dict[str, int] = {}
@@ -295,7 +298,7 @@ class TradingEngine:
                 # エージェント別の予算状態(残高・DD停止・本日損益)を先に評価
                 dd_limit = self.settings.agent_budget_jpy * self.settings.agent_max_drawdown_pct / 100
                 agent_state: dict[str, dict[str, float | bool]] = {}
-                for strat in self.arena:
+                for strat in self.lanes:
                     cum = self.db.cum_pnl_jpy(strat.name)
                     agent_state[strat.name] = {
                         "cum_pnl": cum,
@@ -303,7 +306,7 @@ class TradingEngine:
                         "suspended": cum <= -dd_limit,
                     }
                 entries: list[tuple[Any, Signal]] = []
-                for strat in self.arena:
+                for strat in self.lanes:
                     state = agent_state[strat.name]
                     for instrument in candle_map:
                         # 戦略ごとの対象ペア制限(session=円のみ、dual_thrust=検証済み3ペア等)

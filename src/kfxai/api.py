@@ -49,7 +49,7 @@ def health(probe_oanda: bool = Query(default=False)) -> dict[str, Any]:
 
 
 def _agent_performance() -> list[dict[str, Any]]:
-    """戦略実行エージェント別の評価: 予算・残高・収益率・状態(active/suspended)。"""
+    """投資家レーン別の評価: 予算・残高・収益率・状態。成績は投資家単位(戦略帰属なし)。"""
     rows = db.query(
         "SELECT strategy, "
         "SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) AS trades, "
@@ -62,11 +62,20 @@ def _agent_performance() -> list[dict[str, Any]]:
     )
     # arenaで構成中のエージェントは未取引でもゼロ行で出す(ダッシュボードの
     # 枠表示がエージェント全員分になるように)。構成外=過去戦略はarena=False。
-    configured: list[str] = []
+    # 稼働中の投資家レーンは未取引でもゼロ行で出す。過去の単体戦略(session等)の
+    # トレードはレーン外=arena=Falseとして履歴表示(旧アーキテクチャの遺物)。
+    # レーン構成: production=本番(昇格先)、arena=投資家A/B/C。どちらも未取引でもゼロ行で出す。
+    # 過去の単体戦略トレード(session等)はレーン外=履歴(legacy)。
+    configured: dict[str, dict] = {}
+    production_names: set[str] = set()
     if settings.strategy == "arena":
-        from .strategies import build_strategies
+        from .strategies import build_production, build_strategies
 
-        configured = [s.name for s in build_strategies(settings)]
+        for inv in build_production(settings):
+            production_names.add(inv.name)
+            configured[inv.name] = {"subs": [s.name for s in getattr(inv, "subs", [])]}
+        for inv in build_strategies(settings):
+            configured[inv.name] = {"subs": [s.name for s in getattr(inv, "subs", [])]}
         existing = {row["strategy"] for row in rows}
         for name in configured:
             if name not in existing:
@@ -76,14 +85,17 @@ def _agent_performance() -> list[dict[str, Any]]:
     dd_limit = budget * settings.agent_max_drawdown_pct / 100
     for row in rows:
         pnl = float(row["pnl_jpy"] or 0)
+        name = row["strategy"]
         row["budget_jpy"] = budget
         row["equity_jpy"] = round(budget + pnl)
         row["return_pct"] = round(100 * pnl / budget, 3) if budget else 0
         row["status"] = "suspended" if pnl <= -dd_limit else "active"
-        row["arena"] = (not configured) or row["strategy"] in configured
-        row["max_positions"] = settings.max_positions if row["arena"] else None
-    # 現役(arena)を上に、その中は損益順。過去戦略は下へ。
-    rows.sort(key=lambda r: (not r["arena"], -float(r["pnl_jpy"] or 0)))
+        row["production"] = name in production_names
+        row["arena"] = name in configured and name not in production_names
+        row["max_positions"] = settings.max_positions if name in configured else None
+        row["subs"] = configured.get(name, {}).get("subs", [])
+    # 本番→アリーナ(損益順)→履歴 の順。
+    rows.sort(key=lambda r: (not r["production"], not r["arena"], -float(r["pnl_jpy"] or 0)))
     return rows
 
 

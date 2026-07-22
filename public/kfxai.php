@@ -169,7 +169,7 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
         <div class="card"><div class="label">地合い判定</div><div class="value" id="regime">-</div></div>
         <div class="card"><div class="label">リスク方針</div><div class="value" id="directive">-</div></div>
         <div class="card"><div class="label">ポジション枠</div><div class="value" id="slots">-</div></div>
-        <div class="card"><div class="label">paper累計損益</div><div class="value" id="pnl">¥0</div></div>
+        <div class="card"><div class="label" id="pnlLabel">paper累計損益</div><div class="value" id="pnl">¥0</div></div>
         <div class="card"><div class="label">判断エンジン</div><div class="value" id="brain">-</div></div>
       </div>
     </section>
@@ -295,11 +295,20 @@ async function refresh(){
     document.querySelector('#regime').textContent=d.regime?.regime||'-';
     document.querySelector('#directive').textContent=d.directive?.directive||'-';
     document.querySelector('#brain').textContent=d.backend||'-';
-    // 上部の枠・累計損益はシステム全体(全レーン合算)。レーン別の内訳は下のタブで見る。
-    const pnl=d.performance?.pnl_jpy||0;
+    // 上部カードはアクティブなレーン(本番+アリーナA/B/C)のみを合算する。paper_tradesには
+    // 過去の単体戦略(session/ma_cross等=legacy)の履歴も残るが、それらはproduction/arenaの
+    // どちらでもないので除外する。全体合算だと死んだ戦略の損失を引きずり、稼働中レーンの成績と
+    // 実態が食い違って見えるため(下のレーン別内訳と符合させる)。単独モードはフラグ未設定なので
+    // その場合のみ従来どおりperformance全体にフォールバックする。
+    const activeLanes=(d.strategy_performance||[]).filter(x=>x.production||x.arena===true);
+    const useAgg=activeLanes.length>0;
+    const laneCount=activeLanes.length||1;
+    const agg=activeLanes.reduce((a,x)=>{a.pnl+=Number(x.pnl_jpy)||0;a.trades+=Number(x.trades)||0;a.wins+=Number(x.wins)||0;return a;},{pnl:0,trades:0,wins:0});
+    const perf=d.performance||{};
+    const pnl=useAgg?agg.pnl:(perf.pnl_jpy||0);
     const pnlEl=document.querySelector('#pnl');pnlEl.textContent=yen.format(pnl);pnlEl.className='value '+pnlClass(pnl);
+    document.querySelector('#pnlLabel').textContent=useAgg?`paper累計損益（本番+アリーナ ${laneCount}レーン合算）`:'paper累計損益';
     const slotsEl=document.querySelector('#slots');const used=(d.open_trades||[]).length;const cap=d.max_positions;
-    const laneCount=(d.strategy_performance||[]).filter(x=>x.production||x.arena===true).length||1;
     if(d.strategy_mode==='arena'){
       const totalCap=laneCount*(cap||0);
       slotsEl.textContent=`${used} / ${totalCap} 使用（${laneCount}レーン合算）`;
@@ -311,9 +320,12 @@ async function refresh(){
     document.querySelector('#instruments').innerHTML=(d.instruments||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join('');
     document.querySelector('#cycleState').textContent=cycle?`cycle #${cycle.id} / ${cycle.status}`:'まだサイクル未実行';
     document.querySelector('#cycleDetail').textContent=cycle?`${time(cycle.started_at)}開始・${cycle.detail||'エラーなし'}`:'OANDA認証情報を設定しworkerを起動してください。';
-    const p=d.performance||{};
-    document.querySelector('#record').textContent=`${p.closed_trades||0} trades / ${((p.win_rate||0)*100).toFixed(1)}% win`;
-    document.querySelector('#recordDetail').textContent=`wins ${p.wins||0} / 累計損益 ${yen.format(p.pnl_jpy||0)}`;
+    // 検証成績も上部カードと同じアクティブレーン合算に揃える(legacy戦略を含めない)。
+    const recTrades=useAgg?agg.trades:(perf.closed_trades||0);
+    const recWins=useAgg?agg.wins:(perf.wins||0);
+    const recWinRate=recTrades?(recWins/recTrades*100):0;
+    document.querySelector('#record').textContent=`${recTrades} trades / ${recWinRate.toFixed(1)}% win`;
+    document.querySelector('#recordDetail').textContent=`wins ${recWins} / 累計損益 ${yen.format(useAgg?agg.pnl:(perf.pnl_jpy||0))}`;
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
     // レーン(本番/投資家A/B/C)のタブ+選択レーンの画面を描画。データは全レーン分が
     // この1レスポンスに入っているので、タブ切替はクライアント側だけで完結する。
