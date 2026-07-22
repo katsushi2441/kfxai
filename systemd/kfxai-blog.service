@@ -1,0 +1,11 @@
+[Unit]
+Description=Kurage FX AI Trade - blog post (3x/day 05:30/13:30/21:30 JST)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kojima/work/kfxai
+# kfxai自身の設定(Ollama等)と、転載用のSMTP/はてな/Blogger宛先(aixec/.env)の両方を読む
+EnvironmentFile=/home/kojima/work/kfxai/.env
+EnvironmentFile=/home/kojima/work/aixec/.env
+ExecStart=/home/kojima/work/kfxai/.venv/bin/python scripts/blog_post.py
+TimeoutStartSec=600

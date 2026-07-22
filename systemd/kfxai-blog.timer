@@ -1,0 +1,10 @@
+[Unit]
+Description=Run kfxai blog post at 05:30 / 13:30 / 21:30 JST (kfreqaiの05/13/21:00から約30分ずらし)
+
+[Timer]
+OnCalendar=*-*-* 05,13,21:30:00
+RandomizedDelaySec=180
+Persistent=true
+
+[Install]
+WantedBy=timers.target
