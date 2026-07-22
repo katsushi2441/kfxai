@@ -308,12 +308,18 @@ async function refresh(){
     const pnl=useAgg?agg.pnl:(perf.pnl_jpy||0);
     const pnlEl=document.querySelector('#pnl');pnlEl.textContent=yen.format(pnl);pnlEl.className='value '+pnlClass(pnl);
     document.querySelector('#pnlLabel').textContent=useAgg?`paper累計損益（本番+アリーナ ${laneCount}レーン合算）`:'paper累計損益';
-    const slotsEl=document.querySelector('#slots');const used=(d.open_trades||[]).length;const cap=d.max_positions;
+    // ポジション枠は「実際に取引する稼働レーン」だけで合算する。停止レーンは新規取引しない=枠ゼロ
+    // なので枠にも使用にも含めない(停止3レーンまで足して7レーン合算は無意味だった。2026-07-22修正)。
+    const slotsEl=document.querySelector('#slots');const cap=d.max_positions;
     if(d.strategy_mode==='arena'){
-      const totalCap=laneCount*(cap||0);
-      slotsEl.textContent=`${used} / ${totalCap} 使用（${laneCount}レーン合算）`;
-      slotsEl.className='value '+(totalCap&&used>=totalCap?'down':'');
+      const tradingLanes=(d.strategy_performance||[]).filter(x=>x.production||(x.arena===true&&!x.stopped));
+      const tradeLaneCount=tradingLanes.length||1;
+      const usedActive=tradingLanes.reduce((s,x)=>s+(Number(x.open_now)||0),0);
+      const totalCap=tradeLaneCount*(cap||0);
+      slotsEl.textContent=`${usedActive} / ${totalCap} 使用（稼働${tradeLaneCount}レーン）`;
+      slotsEl.className='value '+(totalCap&&usedActive>=totalCap?'down':'');
     }else{
+      const used=(d.open_trades||[]).length;
       slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
       slotsEl.className='value '+(cap&&used>=cap?'down':'');
     }
