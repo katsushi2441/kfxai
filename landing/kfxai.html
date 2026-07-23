@@ -207,8 +207,9 @@ footer a { color: var(--accent); font-weight: 700; }
       <span class="tag new">NEW</span>
       <h3>従量課金の頭脳: Kurage FX Brain</h3>
       <p>有料判断APIは、GitHubで人気のトレーディングOSS——TradingAgents(Apache-2.0)・FinGPT(MIT)・
-      ai-hedge-fund(MIT)、コミット固定・出典明記——のLLM知能をローカルGemma 4 12Bで動かしたもの。
-      15スキルが1回$0.05、マルチエージェント討論グラフ完全実行(実測約5.5分)が$0.50。
+      ai-hedge-fund(MIT)、コミット固定・出典明記——のLLM知能を実装。有料呼び出しはDeepSeek、
+      自前運用ではローカルGemmaを選択できます。34スキル・公開x402 36パスを通常1回$0.05、
+      マルチエージェント討論グラフ完全実行が$0.50。
       USDC(Base)・JPYC(Polygon)・Bankrで支払えます。</p>
     </div>
   </div>
@@ -237,6 +238,35 @@ footer a { color: var(--accent); font-weight: 700; }
     <div class="links">
       <a class="btn btn-primary" href="https://kurage.exbridge.jp/kfxai.php">ライブのポジションとサイクル</a>
       <a class="btn btn-ghost" href="https://github.com/katsushi2441/kfxai">コードを読む</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>OSSの本体とKurage FX Brain</h2>
+  <p class="sub">ブローカーに接続する本体はOSS。LLMの知能は任意で、1回単位で利用できます。</p>
+  <div class="grid">
+    <div class="card">
+      <span class="tag">OSS本体</span>
+      <h3>執行とリスク管理はkfxaiが担当</h3>
+      <p>OANDA接続、注文数量、ストップ、日次損失制限、取引記録はGPL-3.0の本体に残ります。
+      Kurage FX Brainは分析と判断だけを返し、ブローカー認証情報も注文実行APIも持ちません。</p>
+    </div>
+    <div class="card">
+      <span class="tag new">34スキル</span>
+      <h3>FX知能の全機能を専用LPに集約</h3>
+      <p>テクニカル・マクロ・センチメント分析、取引・リスク・ポートフォリオ判断、
+      FinGPT、FinRobot、FinMem、マーケットランキング、TradingAgents完全グラフの機能と
+      価格を専用ページで公開しています。</p>
+      <p><a href="https://kfxbrain.exbridge.jp/kfxbrain.html" style="color:var(--accent);font-weight:700">Kurage FX Brainを開く →</a></p>
+    </div>
+    <div class="card">
+      <span class="tag">利用経路</span>
+      <h3>直接x402、Bankr、JPYC</h3>
+      <p>Coinbase CDP対応の直接x402は1回$0.05から。Bankrではコアスキル、
+      PolygonではJPYC決済を利用できます。RapidAPIはStudioへの製品登録済みですが、
+      一般公開リスティングは準備中です。</p>
+      <p><a href="https://bittensorman.xyz/.well-known/x402.json" style="color:var(--accent);font-weight:700">公開中のx402ディスカバリを見る →</a></p>
     </div>
   </div>
 </section>

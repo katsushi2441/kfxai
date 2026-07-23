@@ -213,9 +213,9 @@ footer a { color: var(--accent); font-weight: 700; }
       <h3>Metered brain: Kurage FX Brain</h3>
       <p>The paid judgment API vendors the LLM intelligence of popular open-source trading
       projects — TradingAgents (Apache-2.0), FinGPT (MIT), ai-hedge-fund (MIT), pinned commits,
-      full attribution — on local Gemma 4 12B. 15 skills at $0.05 per call, plus the full
-      multi-agent debate graph at $0.50 (~5.5 minutes of measured compute). USDC on Base,
-      JPYC on Polygon, or Bankr.</p>
+      full attribution. Paid calls use DeepSeek; self-hosted deployments can use local Gemma.
+      The catalog contains 34 skills across 36 live x402 paths at $0.05 per standard call,
+      plus the full multi-agent debate graph at $0.50. USDC on Base, JPYC on Polygon, or Bankr.</p>
     </div>
   </div>
 </section>
@@ -245,6 +245,36 @@ footer a { color: var(--accent); font-weight: 700; }
     <div class="links">
       <a class="btn btn-primary" href="https://kurage.exbridge.jp/kfxai.php">Live positions &amp; cycles</a>
       <a class="btn btn-ghost" href="https://github.com/katsushi2441/kfxai">Read the code</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>OSS body, Kurage FX Brain</h2>
+  <p class="sub">The broker-facing body is open source. The LLM intelligence is optional and metered.</p>
+  <div class="grid">
+    <div class="card">
+      <span class="tag">OSS BODY</span>
+      <h3>kfxai owns execution and risk</h3>
+      <p>OANDA connectivity, order sizing, stops, daily-loss limits and the trade journal stay in
+      the GPL-3.0 body. Kurage FX Brain only returns analysis and judgments; it has no broker
+      credentials and no order-execution endpoint.</p>
+    </div>
+    <div class="card">
+      <span class="tag new">34 SKILLS</span>
+      <h3>The complete FX intelligence catalog</h3>
+      <p>Technical, macro and sentiment analysis, trade/risk/portfolio decisions, FinGPT,
+      FinRobot, FinMem, market rankings and a complete TradingAgents multi-agent graph are
+      documented with request prices on the dedicated product page.</p>
+      <p><a href="https://kfxbrain.exbridge.jp/" style="color:var(--accent);font-weight:700">Open Kurage FX Brain →</a></p>
+    </div>
+    <div class="card">
+      <span class="tag">ACCESS</span>
+      <h3>Direct x402, Bankr and JPYC</h3>
+      <p>Direct Coinbase CDP x402 starts at $0.05 per call, Bankr exposes the core skills, and
+      JPYC provides a Polygon payment rail. RapidAPI products are configured in Studio, but
+      public marketplace listings are still pending.</p>
+      <p><a href="https://bittensorman.xyz/.well-known/x402.json" style="color:var(--accent);font-weight:700">View live x402 discovery →</a></p>
     </div>
   </div>
 </section>
