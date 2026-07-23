@@ -143,6 +143,23 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
   footer a { color: var(--indigo); text-decoration: none; font-weight: 600; }
   @media (max-width: 720px) { .twocol { grid-template-columns: 1fr; } header h1 { font-size: 18px; } }
 </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BP0650KDFR"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BP0650KDFR');
+</script>
+<script>
+(function () {
+    var s = document.createElement('script');
+    s.src = 'https://aiknowledgecms.exbridge.jp/simpletrack.php'
+        + '?url=' + encodeURIComponent(location.href)
+        + '&ref=' + encodeURIComponent(document.referrer);
+    document.head.appendChild(s);
+})();
+</script>
 </head>
 <body>
   <header>
