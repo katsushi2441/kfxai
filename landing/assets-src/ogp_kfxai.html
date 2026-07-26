@@ -1,0 +1,56 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+.stage{position:relative;width:1200px;height:630px;overflow:hidden;font-family:"Noto Sans CJK JP",sans-serif;color:#f3ede2;
+ background:radial-gradient(820px 500px at 88% -8%,rgba(245,158,11,.20),transparent 60%),
+ radial-gradient(700px 560px at -6% 112%,rgba(217,119,6,.14),transparent 55%),
+ linear-gradient(135deg,#101828 0%,#1a2436 52%,#2a2115 100%)}
+.grid{position:absolute;left:0;right:0;height:1px;background:rgba(245,196,120,.08)}
+.left{position:absolute;left:66px;top:52px;width:700px}
+.eyebrow{display:inline-flex;align-items:center;gap:11px;font-size:21px;font-weight:800;letter-spacing:.12em;color:#fbbf60;text-transform:uppercase}
+.dot{width:12px;height:12px;border-radius:50%;background:#f59e0b;box-shadow:0 0 16px #f59e0b}
+h1{font-size:78px;line-height:1.04;font-weight:900;letter-spacing:-.02em;margin:12px 0 0}
+h1 .fx{background:linear-gradient(90deg,#fbbf24,#f97316);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{font-size:29px;font-weight:700;color:#d8cfbe;margin-top:20px;line-height:1.5}
+.chips{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.07);border:1.5px solid rgba(245,196,120,.35);border-radius:15px;padding:11px 17px;font-size:21px;font-weight:800}
+.chip b{color:#fbbf24}
+.foot{position:absolute;left:66px;bottom:42px;display:flex;align-items:center;gap:14px;font-size:26px;color:#c9bfa9}
+.foot .url{font-weight:800;color:#f3ede2}.jelly{font-size:38px}
+.right{position:absolute;right:60px;top:70px;width:340px}
+.panel{background:rgba(10,16,28,.72);border:1.5px solid rgba(245,196,120,.35);border-radius:20px;padding:20px;box-shadow:0 16px 50px rgba(0,0,0,.4)}
+.panel .t{font-size:18px;font-weight:800;color:#fbbf60;letter-spacing:.06em;margin-bottom:12px}
+.chart{display:flex;gap:9px;align-items:flex-end;height:180px;padding:4px 2px;position:relative}
+.c{width:24px;position:relative;border-radius:4px}
+.c i{position:absolute;left:50%;transform:translateX(-50%);width:3px;background:inherit;border-radius:2px}
+.box{position:absolute;left:0;right:118px;top:52px;height:64px;border:2px dashed rgba(251,191,36,.65);border-radius:8px}
+.brk{position:absolute;right:6px;top:6px;background:#f59e0b;color:#241a05;font-size:15px;font-weight:900;border-radius:8px;padding:3px 10px}
+.pair{display:flex;gap:8px;margin-top:14px}
+.pp{background:rgba(251,191,36,.14);border:1.5px solid rgba(251,191,36,.4);color:#ffe1a3;border-radius:999px;padding:6px 13px;font-size:17px;font-weight:900}
+</style></head><body><div class="stage">
+<div class="grid" style="top:150px"></div><div class="grid" style="top:340px"></div><div class="grid" style="top:520px"></div>
+<div class="left">
+ <span class="eyebrow"><span class="dot"></span>OANDA API ・ ペーパー運用 ・ OSS</span>
+ <h1>Kurage <span class="fx">FX AI</span> Trade</h1>
+ <div class="sub">FX自動売買のボディと、差し替えできる<br>AI判断レイヤーを分離した自動運用OSS。</div>
+ <div class="chips">
+  <div class="chip">⚡ <b>セッションブレイクアウト</b></div>
+  <div class="chip">🛡️ 固定<b>リスクゲート</b></div>
+  <div class="chip">📓 取引後<b>レビュー</b>ループ</div>
+ </div>
+</div>
+<div class="foot"><span class="jelly">🪼</span><span class="url">kfxai.exbridge.jp</span></div>
+<div class="right"><div class="panel">
+ <div class="t">TOKYO → LONDON BREAKOUT</div>
+ <div class="chart">
+  <div class="box"></div><div class="brk">BREAK↑</div>
+  <div class="c" style="height:52px;background:#e35b5b"><i style="height:70px;bottom:-9px"></i></div>
+  <div class="c" style="height:38px;background:#3ddc97;align-self:flex-end;margin-bottom:8px"><i style="height:56px;bottom:-9px"></i></div>
+  <div class="c" style="height:30px;background:#e35b5b;align-self:flex-end;margin-bottom:16px"><i style="height:44px;bottom:-7px"></i></div>
+  <div class="c" style="height:34px;background:#3ddc97;align-self:flex-end;margin-bottom:14px"><i style="height:48px;bottom:-7px"></i></div>
+  <div class="c" style="height:56px;background:#3ddc97;align-self:flex-end;margin-bottom:22px"><i style="height:74px;bottom:-9px"></i></div>
+  <div class="c" style="height:78px;background:#3ddc97;align-self:flex-end;margin-bottom:40px"><i style="height:96px;bottom:-9px"></i></div>
+  <div class="c" style="height:64px;background:#3ddc97;align-self:flex-end;margin-bottom:70px"><i style="height:84px;bottom:-10px"></i></div>
+ </div>
+ <div class="pair"><span class="pp">USD/JPY</span><span class="pp">EUR/JPY</span><span class="pp">GBP/JPY</span></div>
+</div></div>
+</div></body></html>
