@@ -164,7 +164,21 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
   .error { display: none; background: #fde2e1; color: #a4201b; padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 20px; }
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 30px 20px; line-height: 1.8; }
   footer a { color: var(--indigo); text-decoration: none; font-weight: 600; }
-  @media (max-width: 720px) { .twocol { grid-template-columns: 1fr; } header h1 { font-size: 18px; } }
+  @media (max-width: 720px) {
+    .twocol { grid-template-columns: 1fr; }
+    header { padding: 16px 16px 10px; gap: 8px; align-items: flex-start; }
+    header h1 { font-size: 17px; line-height: 1.4; }
+    header h1 small { letter-spacing: .1em; font-size: 10px; }
+    .badge { margin-left: 0; margin-top: 4px; font-size: 11px; }
+    /* SYSTEM STATE は縦3行で場所を食うので、モバイルでは1行に畳む */
+    .stamp { text-align: left; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .stamp .st-label { font-size: 10px; }
+    .stamp .st-state { font-size: 15px; }
+    .stamp .st-time { font-size: 10px; }
+    .grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { padding: 14px 14px; }
+    .card .value { font-size: 20px; }
+  }
 </style>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-BP0650KDFR"></script>
@@ -206,8 +220,8 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
     <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。実リンクでURL遷移するのでJSに依存せず必ず選べる。
          アリーナで投資家名を押すと、本番と同じ画面がその投資家のデータで開く(ドリルイン)。 -->
     <div class="tabs">
-      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" data-tab="honban" href="?">本番（メイン戦略）</a>
-      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" data-tab="arena" href="?view=arena">アリーナ（戦略エージェント）</a>
+      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" data-tab="honban" href="?">📈 本番</a>
+      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" data-tab="arena" href="?view=arena">🏟️ アリーナ</a>
     </div>
 
     <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
