@@ -188,7 +188,7 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
 <body>
   <header>
     <div class="brand">
-      <span class="kurage-avatar-stage kurage-avatar-mini" role="img" aria-label="Kurage avatar"><img class="kurage-avatar-still" src="images/kurage_avatar.webp" alt=""></span>
+      <span class="kurage-avatar-stage kurage-avatar-mini" role="img" aria-label="Kurage avatar"><img class="kurage-avatar-still" src="images/kurage_avatar_face.webp" alt=""></span>
       <h1><span>Kurage FX</span> AI Trade
         <span class="badge" id="modeBadge">PAPER（紙上取引）</span>
         <small>OSS BODY / METERED BRAIN</small>
