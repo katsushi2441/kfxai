@@ -180,15 +180,23 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
   <main>
     <div class="error" id="errorBox"></div>
 
+    <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。実リンクでURL遷移するのでJSに依存せず必ず選べる。
+         アリーナで投資家名を押すと、本番と同じ画面がその投資家のデータで開く(ドリルイン)。 -->
+    <div class="tabs">
+      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" href="?">本番（メイン戦略）</a>
+      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" href="?view=arena">アリーナ（戦略エージェント）</a>
+    </div>
+
     <section>
       <div class="grid">
         <div class="card"><div class="label">モード</div><div class="value" id="mode">-</div></div>
         <div class="card"><div class="label">市場</div><div class="value" id="market">-</div></div>
         <div class="card"><div class="label">地合い判定</div><div class="value" id="regime">-</div></div>
         <div class="card"><div class="label">リスク方針</div><div class="value" id="directive">-</div></div>
-        <div class="card"><div class="label">ポジション枠</div><div class="value" id="slots">-</div></div>
-        <div class="card"><div class="label" id="pnlLabel">paper累計損益</div><div class="value" id="pnl">¥0</div></div>
         <div class="card"><div class="label">判断エンジン</div><div class="value" id="brain">-</div></div>
+        <!-- 枠・累計損益は下の「表示中レーンのカード」に一本化(kfreqai同様、重複カードを置かない)。
+             JSが参照する要素だけ隠しdivとして残す。 -->
+        <div style="display:none"><span id="slots"></span><span id="pnlLabel"></span><span id="pnl"></span></div>
       </div>
     </section>
 
@@ -217,13 +225,6 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
         </article>
       </div>
     </section>
-
-    <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。実リンクでURL遷移するのでJSに依存せず必ず選べる。
-         アリーナで投資家名を押すと、本番と同じ画面がその投資家のデータで開く(ドリルイン)。 -->
-    <div class="tabs">
-      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" href="?">本番（メイン戦略）</a>
-      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" href="?view=arena">アリーナ（戦略エージェント）</a>
-    </div>
 
     <!-- 投資家を選択中のバナー(kfreqaiと同じ) -->
     <div id="agentBanner" style="<?php echo $kfxai_view === 'agent' ? '' : 'display:none;'; ?>background:rgba(0,172,193,.10);border:1px solid rgba(0,172,193,.45);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:14px"></div>
