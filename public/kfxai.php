@@ -187,7 +187,7 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
       <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" href="?view=arena">アリーナ（戦略エージェント）</a>
     </div>
 
-    <section>
+    <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
       <div class="grid">
         <div class="card"><div class="label">モード</div><div class="value" id="mode">-</div></div>
         <div class="card"><div class="label">市場</div><div class="value" id="market">-</div></div>
@@ -200,7 +200,7 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
       </div>
     </section>
 
-    <section>
+    <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
       <div class="twocol">
         <article class="panel">
           <h3>運転状況</h3>
@@ -270,7 +270,7 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
       </section>
     </div>
 
-    <section>
+    <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
       <h2>最新記事（Kurage 暗号資産/FX AI 自動取引日記）</h2>
       <?php $kfxai_blog_posts = kfxai_latest_blog_posts(5); ?>
       <?php if (empty($kfxai_blog_posts)): ?>
