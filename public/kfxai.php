@@ -146,6 +146,7 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-BP0650KDFR"></script>
 <script>
+let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo json_encode($kfxai_agent); ?>;
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
@@ -231,13 +232,13 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
     <div id="pane-main" class="pane" style="<?php echo $kfxai_view === 'arena' ? 'display:none;' : ''; ?>">
       <p id="laneCaption" style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 12px"></p>
       <section>
+        <!-- kfreqaiと同じ4枚構成(2026-07-27): Bot / 残高 / 累計損益 / ポジション枠。
+             各レーンは独立表示(合算しない)。収益率・本日・勝率はサブ行に集約。 -->
         <div class="grid" id="laneCards">
-          <div class="card"><div class="label">残高</div><div class="value" id="lnEquity">-</div></div>
-          <div class="card"><div class="label">収益率</div><div class="value" id="lnReturn">-</div></div>
-          <div class="card"><div class="label">本日損益</div><div class="value" id="lnToday">¥0</div></div>
-          <div class="card"><div class="label">累計損益</div><div class="value" id="lnPnl">¥0</div></div>
-          <div class="card"><div class="label">決済数 / 勝率</div><div class="value" id="lnRecord">-</div></div>
-          <div class="card"><div class="label">ポジション枠</div><div class="value" id="lnSlots">-</div></div>
+          <div class="card"><div class="label">Bot</div><div class="value" style="font-size:18px" id="lnName">-</div><div class="sub" id="lnNameSub">OANDA FX・1エンジン</div></div>
+          <div class="card"><div class="label">残高</div><div class="value" id="lnEquity">-</div><div class="sub" id="lnReturn">-</div></div>
+          <div class="card"><div class="label">累計損益（確定分）</div><div class="value" id="lnPnl">¥0</div><div class="sub" id="lnToday">本日 ¥0</div></div>
+          <div class="card"><div class="label">ポジション枠</div><div class="value" id="lnSlots">-</div><div class="sub" id="lnRecord">-</div></div>
         </div>
       </section>
       <section>
@@ -260,7 +261,7 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
     <div id="pane-arena" class="pane" style="<?php echo $kfxai_view === 'arena' ? '' : 'display:none;'; ?>">
       <section>
         <h2>投資家レーン（本番の横で並列に試行 — 各: 枠3・予算30万円・DD10%で新規停止）</h2>
-        <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 10px">別々の投資家が複数戦略を回す実験レーン(名前に意味はなく中身は進化する)。<b>投資家名をクリックすると、本番と同じ画面でその投資家のデータを表示</b>します。良いロジックは本番へ昇格し、そのレーンは「停止(手動)」= 新規取引せず過去成績のみ残す会計用レーンになります。<b>上部の累計損益 = 本番 + 全レーン(停止含む)の累計損益の合計</b>です。</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.7;margin:-4px 0 10px">別々の投資家が複数戦略を回す実験レーン(名前に意味はなく中身は進化する)。<b>投資家名をクリックすると、本番と同じ画面でその投資家のデータを表示</b>します。良いロジックは本番へ昇格し、そのレーンは「停止(手動)」= 新規取引せず過去成績のみ残す会計用レーンになります。<b>数字はレーンごとに独立</b>です（合算しません）。同じ条件で競わせ、成績を横並びで比較するための画面です。</p>
         <div class="tscroll"><table>
           <thead><tr><th>投資家</th><th>状態</th><th>残高</th><th>収益率</th><th>本日</th><th>決済数</th><th>勝率</th><th>累計損益</th><th>枠(使用/上限)</th></tr></thead>
           <tbody id="leaderboard"><tr><td colspan="9">読み込み中</td></tr></tbody>
@@ -317,24 +318,23 @@ async function refresh(){
     // どちらでもないので除外する。全体合算だと死んだ戦略の損失を引きずり、稼働中レーンの成績と
     // 実態が食い違って見えるため(下のレーン別内訳と符合させる)。単独モードはフラグ未設定なので
     // その場合のみ従来どおりperformance全体にフォールバックする。
-    const activeLanes=(d.strategy_performance||[]).filter(x=>x.production||x.arena===true);
-    const useAgg=activeLanes.length>0;
-    const laneCount=activeLanes.length||1;
-    const agg=activeLanes.reduce((a,x)=>{a.pnl+=Number(x.pnl_jpy)||0;a.trades+=Number(x.trades)||0;a.wins+=Number(x.wins)||0;return a;},{pnl:0,trades:0,wins:0});
+    // 2026-07-27: 合算を廃止。アリーナは「競わせて良い戦略を見つける」ためのものなので、
+    // 本番と各レーンは独立して見る(kfreqaiと同じ考え方)。上部カードは選択中の1レーンの数字。
+    // 選択中レーン: 投資家ドリルイン中はその投資家、それ以外は本番(既存のVIEW/AGENTを使う)
+    const selName=(VIEW==='agent'&&AGENT)?AGENT:prodName(d);
+    const selLane=laneRow(d,selName);
     const perf=d.performance||{};
-    const pnl=useAgg?agg.pnl:(perf.pnl_jpy||0);
+    const pnl=selLane?(Number(selLane.pnl_jpy)||0):(perf.pnl_jpy||0);
     const pnlEl=document.querySelector('#pnl');pnlEl.textContent=yen.format(pnl);pnlEl.className='value '+pnlClass(pnl);
-    document.querySelector('#pnlLabel').textContent=useAgg?`paper累計損益（本番+アリーナ ${laneCount}レーン合算）`:'paper累計損益';
+    document.querySelector('#pnlLabel').textContent=(selLane&&!selLane.production&&selLane.strategy)
+      ? `paper累計損益（${esc(selLane.strategy)}）` : 'paper累計損益（本番）';
     // ポジション枠は「実際に取引する稼働レーン」だけで合算する。停止レーンは新規取引しない=枠ゼロ
     // なので枠にも使用にも含めない(停止3レーンまで足して7レーン合算は無意味だった。2026-07-22修正)。
     const slotsEl=document.querySelector('#slots');const cap=d.max_positions;
-    if(d.strategy_mode==='arena'){
-      const tradingLanes=(d.strategy_performance||[]).filter(x=>x.production||(x.arena===true&&!x.stopped));
-      const tradeLaneCount=tradingLanes.length||1;
-      const usedActive=tradingLanes.reduce((s,x)=>s+(Number(x.open_now)||0),0);
-      const totalCap=tradeLaneCount*(cap||0);
-      slotsEl.textContent=`${usedActive} / ${totalCap} 使用（稼働${tradeLaneCount}レーン）`;
-      slotsEl.className='value '+(totalCap&&usedActive>=totalCap?'down':'');
+    if(selLane&&selLane.strategy){
+      const used=Number(selLane.open_now)||0;
+      slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
+      slotsEl.className='value '+(cap&&used>=cap?'down':'');
     }else{
       const used=(d.open_trades||[]).length;
       slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
@@ -344,11 +344,12 @@ async function refresh(){
     document.querySelector('#cycleState').textContent=cycle?`cycle #${cycle.id} / ${cycle.status}`:'まだサイクル未実行';
     document.querySelector('#cycleDetail').textContent=cycle?`${time(cycle.started_at)}開始・${cycle.detail||'エラーなし'}`:'OANDA認証情報を設定しworkerを起動してください。';
     // 検証成績も上部カードと同じアクティブレーン合算に揃える(legacy戦略を含めない)。
-    const recTrades=useAgg?agg.trades:(perf.closed_trades||0);
-    const recWins=useAgg?agg.wins:(perf.wins||0);
+    // 合算廃止に伴い、検証成績も選択中レーンの数字を使う(無ければ全体performance)
+    const recTrades=selLane&&selLane.trades!=null?Number(selLane.trades):(perf.closed_trades||0);
+    const recWins=selLane&&selLane.wins!=null?Number(selLane.wins):(perf.wins||0);
     const recWinRate=recTrades?(recWins/recTrades*100):0;
     document.querySelector('#record').textContent=`${recTrades} trades / ${recWinRate.toFixed(1)}% win`;
-    document.querySelector('#recordDetail').textContent=`wins ${recWins} / 累計損益 ${yen.format(useAgg?agg.pnl:(perf.pnl_jpy||0))}`;
+    document.querySelector('#recordDetail').textContent=`wins ${recWins} / 累計損益 ${yen.format(pnl)}`;
     document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
     // レーン(本番/投資家A/B/C)のタブ+選択レーンの画面を描画。データは全レーン分が
     // この1レスポンスに入っているので、タブ切替はクライアント側だけで完結する。
@@ -362,7 +363,6 @@ async function refresh(){
 }
 // タブ=本番/アリーナ(kfreqaiと同じ)。選択はURL(?view=arena / ?agent=A)で持ち、実リンクで
 // 遷移するのでJSに依存せず必ず選べる。VIEW/AGENTはPHPが現在のURLから初期化する。
-let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo json_encode($kfxai_agent); ?>;
 function arenaInvestors(d){
   return (d.strategy_performance||[]).filter(x=>x.arena===true)
     .sort((a,b)=>String(a.strategy).localeCompare(String(b.strategy)));
@@ -383,12 +383,16 @@ function renderMain(d){
     : `投資家${esc(label)}（アリーナ）— 本番の横で並列に試行する実験レーン。予算${budget?yen.format(budget):'-'}・枠${cap??'-'}・DD10%で新規停止。名前A/B/Cに意味はなく中身は進化する。回している戦略: <b>${esc(subs)}</b>。`;
   const setv=(id,v,cls)=>{const e=document.querySelector(id);if(!e)return;e.textContent=v;if(cls!=null)e.className='value '+cls;};
   const wr=row.trades?Math.round(100*row.wins/row.trades):null;
+  // Botカード: 表示中のレーン名(本番 or 投資家名)。合算しないので常に1レーン分
+  setv('#lnName', label);
+  const sub=document.querySelector('#lnNameSub');
+  if(sub) sub.textContent = isProd ? 'OANDA FX・本番レーン' : 'OANDA FX・アリーナの投資家レーン';
   setv('#lnEquity',row.equity_jpy==null?'-':yen.format(row.equity_jpy));
-  setv('#lnReturn',(row.return_pct==null?'-':row.return_pct.toFixed(2)+'%'),pnlClass(row.return_pct));
-  setv('#lnToday',yen.format(row.today_pnl||0),pnlClass(row.today_pnl));
+  setv('#lnReturn','収益率 '+(row.return_pct==null?'-':row.return_pct.toFixed(2)+'%'));
   setv('#lnPnl',yen.format(row.pnl_jpy||0),pnlClass(row.pnl_jpy));
-  setv('#lnRecord',`${row.trades||0} / ${wr==null?'-':wr+'%'}`);
+  setv('#lnToday','本日 '+yen.format(row.today_pnl||0));
   setv('#lnSlots',`${row.open_now||0} / ${row.max_positions??cap??'-'}`,((row.open_now||0)>=(row.max_positions??cap)?'down':''));
+  setv('#lnRecord',`決済 ${row.trades||0} 件 / 勝率 ${wr==null?'-':wr+'%'}`);
   document.querySelector('#laneLedgerTitle').textContent=`${label}の取引台帳`;
   const tradeRow=x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`;
   const mine=(d.recent_trades||[]).filter(x=>x.strategy===laneName);
