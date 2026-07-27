@@ -72,17 +72,25 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://kurage.exbridge.jp/kfxai.php">
 <link rel="stylesheet" href="assets/kurage-avatar.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
+  /* kfreqaiと同一のデザイントークン(2026-07-27に統一) */
   :root {
-    --indigo: #3949ab; --cyan: #00acc1; --bg: #f6f8fb; --card: #ffffff;
-    --ink: #1c2536; --muted: #66748f; --border: #e3e8f0;
-    --up: #1baf7a; --down: #d6453d;
+    --indigo: #2f6bd8; --cyan: #0b91a7; --glow: #0b91a7; --coin: #b98422;
+    --bg: #f5f8fb; --card: #ffffff;
+    --ink: #17324d; --muted: #64788a; --border: #dbe6ee;
+    --up: #16805f; --down: #d6453d;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background: linear-gradient(180deg, #eef2fb 0%, var(--bg) 320px);
-    color: var(--ink);
+    margin: 0; font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(1000px 600px at 85% -5%, rgba(11,145,167,.10), transparent 60%),
+      radial-gradient(800px 700px at -5% 45%, rgba(47,107,216,.07), transparent 55%),
+      linear-gradient(170deg, #ffffff 0%, #f2f8fa 45%, #eaf5f4 100%);
+    background-attachment: fixed; color: var(--ink); min-height: 100vh;
   }
   header {
     padding: 28px 20px 18px; max-width: 1080px; margin: 0 auto;
@@ -103,19 +111,31 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
   main { max-width: 1080px; margin: 0 auto; padding: 0 20px 60px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
   .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; min-width: 0;
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; min-width: 0;
+    box-shadow: 0 10px 26px rgba(25,72,78,.06);
   }
-  .card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; letter-spacing: .03em; }
-  .card .value { font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 700; }
+  .card .value { font-size: 26px; font-weight: 900; font-family: "Zen Maru Gothic","Noto Sans JP",sans-serif;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .up { color: var(--up); } .down { color: var(--down); }
   section { margin-bottom: 28px; }
-  .tabs { display:flex; gap:8px; margin:4px 0 20px; border-bottom:1px solid var(--border); }
-  .tabbtn { display:inline-block; border:none; background:none; padding:10px 16px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; text-decoration:none; }
-  .tabbtn.active { color:var(--indigo); border-bottom-color:var(--indigo); }
-  section h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; }
+  .tabs { display: flex; gap: 8px; margin: 4px 0 22px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap; padding: 4px 2px 8px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabbtn {
+    padding: 9px 17px; border-radius: 999px; font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1px solid var(--border); background: var(--card); white-space: nowrap; flex: 0 0 auto;
+    font-weight: 800; font-family: "Zen Maru Gothic","Noto Sans JP",sans-serif; transition: border-color .15s, transform .15s;
+  }
+  .tabbtn:hover { border-color: var(--glow); transform: translateY(-1px); }
+  .tabbtn.active { background: linear-gradient(90deg, #0b91a7, #2f6bd8); color: #fff; border-color: transparent;
+    box-shadow: 0 8px 20px rgba(11,145,167,.3); }
+  section h2 { font-size: 14px; color: var(--glow); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 10px;
+    font-weight: 800; }
   .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; min-width: 0;
+    box-shadow: 0 10px 26px rgba(25,72,78,.06); }
   .panel h3 { margin: 0 0 12px; font-size: 14px; }
   .blog-links { list-style: none; padding: 0; margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
   .blog-links li { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -133,8 +153,11 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
   .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
   .chip { padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: #f4f7fc; font-size: 11px; font-weight: 600; color: var(--muted); }
   .tscroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
-  table { width: 100%; border-collapse: collapse; background: var(--card); min-width: 640px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); min-width: 640px;
+    border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
   th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--cyan); font-weight: 800; background: rgba(11,145,167,.06); font-size: 12px; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: none; }
   th { color: var(--muted); font-weight: 600; background: #f9fafc; position: sticky; top: 0; }
   tr:last-child td { border-bottom: none; }
   td.buy { color: var(--up); font-weight: 700; } td.sell { color: var(--down); font-weight: 700; } td.hold { color: var(--muted); }
@@ -183,8 +206,8 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
     <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。実リンクでURL遷移するのでJSに依存せず必ず選べる。
          アリーナで投資家名を押すと、本番と同じ画面がその投資家のデータで開く(ドリルイン)。 -->
     <div class="tabs">
-      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" href="?">本番（メイン戦略）</a>
-      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" href="?view=arena">アリーナ（戦略エージェント）</a>
+      <a class="tabbtn <?php echo $kfxai_view === 'honban' ? 'active' : ''; ?>" data-tab="honban" href="?">本番（メイン戦略）</a>
+      <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" data-tab="arena" href="?view=arena">アリーナ（戦略エージェント）</a>
     </div>
 
     <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
