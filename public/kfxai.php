@@ -245,6 +245,7 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
             <div class="dot" id="statusDot"></div>
             <div><strong id="cycleState">データ待機中</strong><span id="cycleDetail">バックエンドへ接続しています。</span></div>
           </div>
+          <div style="font-size:12px;color:var(--muted);margin:10px 0 6px">対象通貨ペア <b id="inst-count">…</b>：ロンドン／ニューヨークのセッション開始時の値幅ブレイクを取る<b>セッションブレイクアウト戦略</b>で、過去データ（約1.6年）で優位性を検証できた通貨ペアに絞っています。</div>
           <div class="chips" id="instruments"></div>
         </article>
         <article class="panel">
@@ -274,15 +275,15 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
              各レーンは独立表示(合算しない)。収益率・本日・勝率はサブ行に集約。 -->
         <div class="grid" id="laneCards">
           <div class="card"><div class="label">Bot</div><div class="value" style="font-size:18px" id="lnName">-</div><div class="sub" id="lnNameSub">OANDA FX・1エンジン</div></div>
-          <div class="card"><div class="label">残高</div><div class="value" id="lnEquity">-</div><div class="sub" id="lnReturn">-</div></div>
-          <div class="card"><div class="label">累計損益（確定分）</div><div class="value" id="lnPnl">¥0</div><div class="sub" id="lnToday">本日 ¥0</div></div>
-          <div class="card"><div class="label">ポジション枠</div><div class="value" id="lnSlots">-</div><div class="sub" id="lnRecord">-</div></div>
+          <div class="card"><div class="label">残高（推定）</div><div class="value" id="lnEquity">-</div><div class="sub" id="lnReturn">-</div></div>
+          <div class="card"><div class="label">累計損益（確定分）</div><div class="value" id="lnPnl">¥0</div><div class="sub" id="lnToday">含み損益 ¥0</div></div>
+          <div class="card"><div class="label">保有中ポジション</div><div class="value" id="lnSlots">-</div><div class="sub" id="lnRecord">-</div></div>
         </div>
       </section>
       <section>
         <h2 id="laneLedgerTitle">取引台帳</h2>
         <div class="tscroll"><table>
-          <thead><tr><th>ID</th><th>通貨ペア</th><th>方向</th><th>状態</th><th>建玉日時(JST)</th><th>決済日時(JST)</th><th>建値</th><th>決済値</th><th>損益</th><th>理由</th></tr></thead>
+          <thead><tr><th>ID</th><th>ペア</th><th>方向</th><th>状態</th><th>建玉時刻(日本時間)</th><th>クローズ時刻(日本時間)</th><th>平均建値</th><th>決済値</th><th>損益</th><th>決済理由</th></tr></thead>
           <tbody id="laneTrades"><tr><td colspan="10">読み込み中</td></tr></tbody>
         </table></div>
       </section>
@@ -378,7 +379,9 @@ async function refresh(){
       slotsEl.textContent=cap?`${used} / ${cap} 使用`:`${used} 使用`;
       slotsEl.className='value '+(cap&&used>=cap?'down':'');
     }
-    document.querySelector('#instruments').innerHTML=(d.instruments||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join('');
+    var _inst=(d.instruments||[]);
+    document.querySelector('#instruments').innerHTML=_inst.map(x=>`<span class="chip">${esc(x)}</span>`).join('');
+    var _ic=document.querySelector('#inst-count'); if(_ic) _ic.textContent=_inst.length+'通貨ペア';
     document.querySelector('#cycleState').textContent=cycle?`cycle #${cycle.id} / ${cycle.status}`:'まだサイクル未実行';
     document.querySelector('#cycleDetail').textContent=cycle?`${time(cycle.started_at)}開始・${cycle.detail||'エラーなし'}`:'OANDA認証情報を設定しworkerを起動してください。';
     // 検証成績も上部カードと同じアクティブレーン合算に揃える(legacy戦略を含めない)。
@@ -428,9 +431,12 @@ function renderMain(d){
   setv('#lnEquity',row.equity_jpy==null?'-':yen.format(row.equity_jpy));
   setv('#lnReturn','収益率 '+(row.return_pct==null?'-':row.return_pct.toFixed(2)+'%'));
   setv('#lnPnl',yen.format(row.pnl_jpy||0),pnlClass(row.pnl_jpy));
-  setv('#lnToday','本日 '+yen.format(row.today_pnl||0));
-  setv('#lnSlots',`${row.open_now||0} / ${row.max_positions??cap??'-'}`,((row.open_now||0)>=(row.max_positions??cap)?'down':''));
-  setv('#lnRecord',`決済 ${row.trades||0} 件 / 勝率 ${wr==null?'-':wr+'%'}`);
+  // 含み損益: 表示中レーンの保有中取引の評価損益合計(kfreqai/kfreqaihlと同一のsub項目)
+  const lnUnreal=(d.open_trades||[]).filter(x=>x.strategy===laneName)
+    .reduce((s,x)=>s+(Number(x.unrealized_pnl_jpy)||0),0);
+  setv('#lnToday','含み損益 '+(lnUnreal>=0?'+':'')+yen.format(lnUnreal));
+  setv('#lnSlots',`${row.open_now||0}`,((row.open_now||0)>=(row.max_positions??cap)?'down':''));
+  setv('#lnRecord',`勝率: ${wr==null?'-':wr+'%'}`);
   document.querySelector('#laneLedgerTitle').textContent=`${label}の取引台帳`;
   const tradeRow=x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`;
   const mine=(d.recent_trades||[]).filter(x=>x.strategy===laneName);

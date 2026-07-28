@@ -101,6 +101,35 @@ def _agent_performance() -> list[dict[str, Any]]:
     return rows
 
 
+def _with_unrealized(open_trades: list[dict]) -> list[dict]:
+    """保有中取引に含み損益(unrealized_pnl_jpy)を付ける。DBの最新ローソク終値で評価。
+    KPIカードの「含み損益」sub(kfreqai/kfreqaihlと同一項目)のためのサーバー側計算。
+    価格が無い銘柄は0(捏造しない)。"""
+    from .engine import estimate_pnl_jpy
+    px: dict[str, float] = {}
+    for t in open_trades:
+        inst = t["instrument"]
+        if inst not in px:
+            candles = db.load_candles(inst, settings.granularity, limit=1)
+            px[inst] = candles[-1].close if candles else 0.0
+    usdjpy = px.get("USD_JPY")
+    if usdjpy is None:
+        c = db.load_candles("USD_JPY", settings.granularity, limit=1)
+        usdjpy = c[-1].close if c else 0.0
+
+    class _P:  # estimate_pnl_jpyが参照する prices["USD_JPY"].mid の最小互換
+        def __init__(self, mid): self.mid = mid
+    prices = {"USD_JPY": _P(usdjpy)} if usdjpy else {}
+    out = []
+    for t in open_trades:
+        t = dict(t)
+        cur = px.get(t["instrument"]) or 0.0
+        t["unrealized_pnl_jpy"] = round(estimate_pnl_jpy(
+            t["instrument"], t["side"], t["units"], float(t["open_price"]), cur, prices), 1) if cur else 0.0
+        out.append(t)
+    return out
+
+
 @app.get("/api/status")
 def status() -> dict[str, Any]:
     trades = db.query("SELECT * FROM paper_trades ORDER BY id DESC LIMIT 100")
@@ -124,7 +153,7 @@ def status() -> dict[str, Any]:
         "strategy_mode": settings.strategy,
         "agent_budget_jpy": settings.agent_budget_jpy,
         "strategy_performance": _agent_performance(),
-        "open_trades": [trade for trade in trades if trade["status"] == "open"],
+        "open_trades": _with_unrealized([trade for trade in trades if trade["status"] == "open"]),
         "recent_trades": trades,
         "recent_decisions": decisions,
         "recent_cycles": cycles,
