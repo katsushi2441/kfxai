@@ -224,44 +224,25 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
       <a class="tabbtn <?php echo ($kfxai_view === 'arena' || $kfxai_view === 'agent') ? 'active' : ''; ?>" data-tab="arena" href="?view=arena">🏟️ アリーナ</a>
     </div>
 
+    <!-- kfreqaiと同一構成: 地合い・新規エントリー判定(2カード)。旧「モード/市場/地合い判定/
+         リスク方針/判断エンジン」5小カードと「運転状況/検証成績」パネルは廃止(kfreqaiに無い
+         独自物のため)。旧IDはJS互換用に隠しdivへ。 -->
     <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
+      <h2>地合い・新規エントリー判定</h2>
       <div class="grid">
-        <div class="card"><div class="label">モード</div><div class="value" id="mode">-</div></div>
-        <div class="card"><div class="label">市場</div><div class="value" id="market">-</div></div>
-        <div class="card"><div class="label">地合い判定</div><div class="value" id="regime">-</div></div>
-        <div class="card"><div class="label">リスク方針</div><div class="value" id="directive">-</div></div>
-        <div class="card"><div class="label">判断エンジン</div><div class="value" id="brain">-</div></div>
-        <!-- 枠・累計損益は下の「表示中レーンのカード」に一本化(kfreqai同様、重複カードを置かない)。
-             JSが参照する要素だけ隠しdivとして残す。 -->
-        <div style="display:none"><span id="slots"></span><span id="pnlLabel"></span><span id="pnl"></span></div>
+        <div class="card" id="entryCard">
+          <div class="label">新規エントリー</div>
+          <div class="value" id="entryState" style="font-size:20px">-</div>
+          <div class="sub" id="entrySub">-</div>
+        </div>
+        <div class="card">
+          <div class="label">市場全体の地合い</div>
+          <div class="value" id="regimeState" style="font-size:20px">-</div>
+          <div class="sub" id="regimeSub">-</div>
+        </div>
       </div>
-    </section>
-
-    <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
-      <div class="twocol">
-        <article class="panel">
-          <h3>運転状況</h3>
-          <div class="statusline">
-            <div class="dot" id="statusDot"></div>
-            <div><strong id="cycleState">データ待機中</strong><span id="cycleDetail">バックエンドへ接続しています。</span></div>
-          </div>
-          <div style="font-size:12px;color:var(--muted);margin:10px 0 6px">対象通貨ペア <b id="inst-count">…</b>：ロンドン／ニューヨークのセッション開始時の値幅ブレイクを取る<b>セッションブレイクアウト戦略</b>で、過去データ（約1.6年）で優位性を検証できた通貨ペアに絞っています。</div>
-          <div class="chips" id="instruments"></div>
-        </article>
-        <article class="panel">
-          <h3>検証成績</h3>
-          <div class="statusline">
-            <div class="dot"></div>
-            <div><strong id="record">0 trades / 0.0% win</strong><span id="recordDetail">決済済みpaper取引を集計します。</span></div>
-          </div>
-          <div class="chips">
-            <span class="chip">AIは注文量を変更不可</span>
-            <span class="chip">日次損失上限</span>
-            <span class="chip">スプレッド制限</span>
-            <span class="chip">週末停止</span>
-          </div>
-        </article>
-      </div>
+      <p class="native-note">「新規エントリー停止中」は、地合いが崩れているときにAIが新規の取引を一時的に見合わせている状態です。保有中のポジションには影響しません。地合いが回復すると自動で解除されます。</p>
+      <div style="display:none"><span id="slots"></span><span id="pnlLabel"></span><span id="pnl"></span><span id="mode"></span><span id="market"></span><span id="regime"></span><span id="directive"></span><span id="brain"></span><span id="record"></span><span id="recordDetail"></span></div>
     </section>
 
     <!-- 投資家を選択中のバナー(kfreqaiと同じ) -->
@@ -302,10 +283,34 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
           <tbody id="laneDaily"><tr><td colspan="3">読み込み中</td></tr></tbody>
         </table>
       </section>
+
+    <section>
+      <h2>最新記事（Kurage 暗号資産/FX AI 自動取引日記）</h2>
+      <?php $kfxai_blog_posts = kfxai_latest_blog_posts(5); ?>
+      <?php if (empty($kfxai_blog_posts)): ?>
+        <p class="blog-more">記事の取得に失敗したか、まだ記事がありません。
+          <a href="https://kurage.exbridge.jp/blog/category/kfxai">ブログで見る →</a></p>
+      <?php else: ?>
+      <ul class="blog-links">
+        <?php foreach ($kfxai_blog_posts as $p): ?>
+        <li><a href="<?php echo kfxai_h(isset($p['permalink']) ? $p['permalink'] : '#'); ?>"><?php echo kfxai_h(isset($p['title']) ? $p['title'] : '(無題)'); ?></a>
+          <span class="blog-date"><?php echo kfxai_h(isset($p['date']) ? $p['date'] : ''); ?></span></li>
+        <?php endforeach; ?>
+      </ul>
+      <p class="blog-more"><a href="https://kurage.exbridge.jp/blog/category/kfxai">kfxaiの記事一覧を見る →</a></p>
+      <?php endif; ?>
+    </section>
+      <!-- kfreqaiの「取引対象のN銘柄・稼働状況」と同一構成(対象説明+生存確認+AI判断テーブル) -->
       <section>
-        <h2>直近の判断（市場共通・全レーンで共有）</h2>
+        <h2>取引対象の5通貨ペア・稼働状況（AIの判断 — 取引が0件でも生きて動いているかの確認用）</h2>
+        <p class="native-note" style="margin:0 0 12px">対象通貨ペア <b id="inst-count">…</b>：ロンドン／ニューヨークのセッション開始時の値幅ブレイクを取る<b>セッションブレイクアウト戦略</b>で、過去データ（約1.6年）で優位性を検証できた通貨ペアに絞っています。取引が0件でも、AIはこの対象ペアを分析し続けます（下表はその生存確認）。</p>
+        <div class="chips" id="instruments" style="margin-bottom:10px"></div>
+        <div class="statusline" style="margin:10px 0">
+          <div class="dot" id="statusDot"></div>
+          <div><strong id="cycleState">データ待機中</strong><span id="cycleDetail">バックエンドへ接続しています。</span></div>
+        </div>
         <div class="tscroll"><table>
-          <thead><tr><th>時刻</th><th>通貨ペア</th><th>判断</th><th>P(up)</th><th>スプレッド</th><th>実行</th><th>理由</th></tr></thead>
+          <thead><tr><th>ペア</th><th>最終分析(日本時間)</th><th>AI判断（上昇確率）</th><th>判定</th><th>実行</th><th>理由</th><th>スプレッド</th></tr></thead>
           <tbody id="decisions"><tr><td colspan="7">読み込み中</td></tr></tbody>
         </table></div>
       </section>
@@ -323,22 +328,6 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
       </section>
     </div>
 
-    <section<?php echo $kfxai_view === 'arena' ? ' style="display:none"' : ''; ?>>
-      <h2>最新記事（Kurage 暗号資産/FX AI 自動取引日記）</h2>
-      <?php $kfxai_blog_posts = kfxai_latest_blog_posts(5); ?>
-      <?php if (empty($kfxai_blog_posts)): ?>
-        <p class="blog-more">記事の取得に失敗したか、まだ記事がありません。
-          <a href="https://kurage.exbridge.jp/blog/category/kfxai">ブログで見る →</a></p>
-      <?php else: ?>
-      <ul class="blog-links">
-        <?php foreach ($kfxai_blog_posts as $p): ?>
-        <li><a href="<?php echo kfxai_h(isset($p['permalink']) ? $p['permalink'] : '#'); ?>"><?php echo kfxai_h(isset($p['title']) ? $p['title'] : '(無題)'); ?></a>
-          <span class="blog-date"><?php echo kfxai_h(isset($p['date']) ? $p['date'] : ''); ?></span></li>
-        <?php endforeach; ?>
-      </ul>
-      <p class="blog-more"><a href="https://kurage.exbridge.jp/blog/category/kfxai">kfxaiの記事一覧を見る →</a></p>
-      <?php endif; ?>
-    </section>
 
     <footer>
       <a href="https://kurage.exbridge.jp/">Kurageプロジェクト</a> / Kurage FX AI Trade<br>
@@ -367,6 +356,18 @@ async function refresh(){
     document.querySelector('#regime').textContent=d.regime?.regime||'-';
     document.querySelector('#directive').textContent=d.directive?.directive||'-';
     document.querySelector('#brain').textContent=d.backend||'-';
+    // 地合い・新規エントリー判定(kfreqaiと同一の2カード)
+    const dirv=String(d.directive?.directive||'').toLowerCase();
+    const blocked=dirv.includes('risk_off')||dirv.includes('halt');
+    const es=document.querySelector('#entryState');
+    if(es){es.textContent=blocked?'停止中（risk_off）':'許可';es.className='value '+(blocked?'down':'up');es.style.fontSize='20px';}
+    const esub=document.querySelector('#entrySub');
+    if(esub){esub.textContent=`リスク方針: ${d.directive?.directive||'不明'}${d.directive?.note?`（${d.directive.note}）`:''}・市場: ${d.market_open?'オープン':'クローズ'}`;}
+    const rs=document.querySelector('#regimeState'); if(rs){rs.textContent=d.regime?.regime||'不明';}
+    const rsub=document.querySelector('#regimeSub');
+    if(rsub){rsub.textContent=`${d.regime?.note||''}${d.regime?.updated_at?` 判定: ${time(d.regime.updated_at)}`:''}（毎サイクル更新）`;}
+    const entryCard=document.querySelector('#entryCard');
+    if(entryCard){entryCard.style.background=blocked?'#fde2e1':'';entryCard.style.borderColor=blocked?'#f3b4b0':'';}
     // 上部カードはアクティブなレーン(本番+アリーナA/B/C)のみを合算する。paper_tradesには
     // 過去の単体戦略(session/ma_cross等=legacy)の履歴も残るが、それらはproduction/arenaの
     // どちらでもないので除外する。全体合算だと死んだ戦略の損失を引きずり、稼働中レーンの成績と
@@ -406,7 +407,8 @@ async function refresh(){
     const recWinRate=recTrades?(recWins/recTrades*100):0;
     document.querySelector('#record').textContent=`${recTrades} trades / ${recWinRate.toFixed(1)}% win`;
     document.querySelector('#recordDetail').textContent=`wins ${recWins} / 累計損益 ${yen.format(pnl)}`;
-    document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td>${time(x.created_at)}</td><td>${esc(x.instrument)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
+    // 稼働状況テーブル(kfreqaiの列順に合わせる: ペアが先頭・時刻は「最終分析(日本時間)」)
+    document.querySelector('#decisions').innerHTML=(d.recent_decisions||[]).slice(0,40).map(x=>`<tr><td><b>${esc(x.instrument)}</b></td><td>${time(x.created_at)}</td><td>${Number(x.probability_up).toFixed(3)}</td><td class="${esc(x.action)}">${esc(x.action)}</td><td>${x.executed?'YES':'NO'}</td><td title="${esc(x.reason)}">${esc(String(x.reason).slice(0,46))}</td><td>${x.spread_pips==null?'-':Number(x.spread_pips).toFixed(2)}</td></tr>`).join('')||'<tr><td colspan="7">判断履歴はまだありません。</td></tr>';
     // レーン(本番/投資家A/B/C)のタブ+選択レーンの画面を描画。データは全レーン分が
     // この1レスポンスに入っているので、タブ切替はクライアント側だけで完結する。
     LAST=d; applyView();
@@ -442,7 +444,7 @@ function renderMain(d){
   // Botカード: 表示中のレーン名(本番 or 投資家名)。合算しないので常に1レーン分
   setv('#lnName', label);
   const sub=document.querySelector('#lnNameSub');
-  if(sub) sub.textContent = isProd ? 'OANDA FX・本番レーン' : 'OANDA FX・アリーナの投資家レーン';
+  if(sub) sub.textContent = (isProd ? 'OANDA FX・本番レーン' : 'OANDA FX・アリーナの投資家レーン') + ' / ' + (d.mode || 'paper');
   setv('#lnEquity',row.equity_jpy==null?'-':yen.format(row.equity_jpy));
   setv('#lnReturn','収益率 '+(row.return_pct==null?'-':row.return_pct.toFixed(2)+'%'));
   setv('#lnPnl',yen.format(row.pnl_jpy||0),pnlClass(row.pnl_jpy));
