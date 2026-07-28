@@ -413,9 +413,9 @@ INVESTOR_DEFS = [
     ("A", []),  # 旧session,dual_thrust。dual_thrustを本番昇格につき停止(2026-07-22)
     ("B", []),  # 旧dual_thrust。本番昇格につき停止
     ("C", []),  # 旧llm_analyst。方向予測=全滅確定につき停止・退役
-    ("D", ["rsi_meanrev"]),  # 新規: 逆張り
-    ("E", ["donchian"]),     # 新規: 別ブレイク
-    ("F", ["ma_cross"]),     # 新規: トレンド
+    ("D", []),  # 旧rsi_meanrev。勝率50%/+1361円で本番昇格につき停止(2026-07-29)
+    ("E", ["donchian"]),     # 別ブレイク(46%・+203円で継続)
+    ("F", []),  # 旧ma_cross。勝率12%/-2630円で停止(2026-07-29)
 ]
 _DEFAULT_ROSTER = [name for name, _ in INVESTOR_DEFS]
 

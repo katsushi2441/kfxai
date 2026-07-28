@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -219,6 +220,16 @@ class TradingEngine:
                         held_min = (trade["bars_held"] + 1) * self.settings.cycle_seconds / 60
                         if held_min >= strategy.max_hold_minutes:
                             reason = "max_hold"
+                        elif held_min >= strategy.max_hold_minutes * 0.5:
+                            # 不発の早期撤退(2026-07-29): max_holdの半分を過ぎても含み益が
+                            # 出ていない取引は「走らなかったブレイク」として畳む。
+                            # max_hold満了組(全決済の25%・勝率39%・平均-7円)が勝率を希釈
+                            # していた対策。含み益が出ている取引はそのまま走らせる。
+                            upnl = estimate_pnl_jpy(
+                                trade["instrument"], trade["side"], trade["units"],
+                                trade["open_price"], current, prices)
+                            if upnl <= 0:
+                                reason = "stale_exit"
                 elif self.settings.strategy in ("session", "arena"):
                     # セッション戦略(単独モード) or アリーナのロースター外の遺物
                     if session_should_close(datetime.now(timezone.utc), self.settings):
@@ -340,6 +351,7 @@ class TradingEngine:
             else:
                 entries = [(None, s) for s in self._signals(candle_map, regime, directive).values()]
 
+            brain_gate_cache = None  # kfxbrainゲート(非holdシグナルが出た最初の1回だけ取得)
             for strat, signal in entries:
                 instrument = signal.instrument
                 price = prices.get(instrument)
@@ -356,6 +368,25 @@ class TradingEngine:
                     daily_loss_limit = self.settings.max_daily_loss_jpy
                 allowed, gate_reason = self._risk_allows(
                     signal, price, position_taken, slot_count, daily_pnl, daily_loss_limit)
+                # kfxbrainエントリー選別ゲート(kfreqaihlと同型・2026-07-29)。リスク条件を
+                # 通過した非holdシグナルだけを対象に、サイクル内で1回だけAI判断を取り、
+                # avoid/逆方向なら見送る。ゲート障害時はfail-open(通す)。
+                if allowed and os.environ.get("KFXAI_BRAIN_GATE", "1") == "1":
+                    if brain_gate_cache is None:
+                        try:
+                            from . import brain_gate as _bg
+                            evidence = [_bg.build_pair_evidence(inst, cds)
+                                        for inst, cds in candle_map.items() if cds]
+                            brain_gate_cache = _bg.market_gate(evidence)
+                        except Exception as exc:  # noqa: BLE001
+                            brain_gate_cache = {}
+                            self.db.set_state("brain_gate_error", {"error": str(exc)[:200]})
+                    side_for_gate = "long" if signal.action == "buy" else "short"
+                    from . import brain_gate as _bg
+                    ok_brain, brain_why = _bg.entry_allowed(brain_gate_cache, instrument, side_for_gate)
+                    if not ok_brain:
+                        allowed = False
+                        gate_reason = brain_why
                 action = {"decision_id": decision_id, **signal.to_dict(), "gate": gate_reason}
                 if allowed and price:
                     side = "long" if signal.action == "buy" else "short"
