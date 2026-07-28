@@ -280,12 +280,27 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
           <div class="card"><div class="label">保有中ポジション</div><div class="value" id="lnSlots">-</div><div class="sub" id="lnRecord">-</div></div>
         </div>
       </section>
+      <!-- kfreqaiと同一の3セクション構成: 保有中ポジション / 直近の約定履歴 / 日次損益 -->
       <section>
-        <h2 id="laneLedgerTitle">取引台帳</h2>
+        <h2>保有中ポジション</h2>
         <div class="tscroll"><table>
-          <thead><tr><th>ID</th><th>ペア</th><th>方向</th><th>状態</th><th>建玉時刻(日本時間)</th><th>クローズ時刻(日本時間)</th><th>平均建値</th><th>決済値</th><th>損益</th><th>決済理由</th></tr></thead>
-          <tbody id="laneTrades"><tr><td colspan="10">読み込み中</td></tr></tbody>
+          <thead><tr><th>ペア</th><th>方向</th><th>金額(円)</th><th>平均建値</th><th>現在値</th><th>含み損益</th><th>建玉時刻(日本時間)</th></tr></thead>
+          <tbody id="lanePositions"><tr><td colspan="7">読み込み中</td></tr></tbody>
         </table></div>
+      </section>
+      <section>
+        <h2>直近の約定履歴（最新50件）</h2>
+        <div class="tscroll" style="max-height:430px;overflow-y:auto"><table>
+          <thead><tr><th>ペア</th><th>方向</th><th>建玉時刻(日本時間)</th><th>損益</th><th>決済理由</th><th>クローズ時刻(日本時間)</th></tr></thead>
+          <tbody id="laneTrades"><tr><td colspan="6">読み込み中</td></tr></tbody>
+        </table></div>
+      </section>
+      <section>
+        <h2>日次損益（直近7日・日本時間）</h2>
+        <table>
+          <thead><tr><th>日付</th><th>損益</th><th>約定数</th></tr></thead>
+          <tbody id="laneDaily"><tr><td colspan="3">読み込み中</td></tr></tbody>
+        </table>
       </section>
       <section>
         <h2>直近の判断（市場共通・全レーンで共有）</h2>
@@ -437,10 +452,35 @@ function renderMain(d){
   setv('#lnToday','含み損益 '+(lnUnreal>=0?'+':'')+yen.format(lnUnreal));
   setv('#lnSlots',`${row.open_now||0}`,((row.open_now||0)>=(row.max_positions??cap)?'down':''));
   setv('#lnRecord',`勝率: ${wr==null?'-':wr+'%'}`);
-  document.querySelector('#laneLedgerTitle').textContent=`${label}の取引台帳`;
-  const tradeRow=x=>`<tr><td>${x.id}</td><td>${esc(x.instrument)}</td><td class="${esc((x.side||'').toLowerCase())}">${esc(x.side)}</td><td>${esc(x.status)}</td><td>${time(x.open_time)}</td><td>${time(x.close_time)}</td><td>${Number(x.open_price).toFixed(5)}</td><td>${x.close_price==null?'-':Number(x.close_price).toFixed(5)}</td><td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':yen.format(x.pnl_jpy)}</td><td>${esc(x.exit_reason||'-')}</td></tr>`;
-  const mine=(d.recent_trades||[]).filter(x=>x.strategy===laneName);
-  document.querySelector('#laneTrades').innerHTML=mine.slice(0,40).map(tradeRow).join('')||`<tr><td colspan="10">${esc(label)}の取引はまだありません。</td></tr>`;
+  // kfreqaiと同一の3テーブル(保有中ポジション/約定履歴/日次損益)。方向表記もLong/Shortで統一
+  const dirJa=s=>String(s||'').toLowerCase()==='short'?'<span style="color:var(--down);font-weight:700">Short</span>':'Long';
+  const openMine=(d.open_trades||[]).filter(x=>x.strategy===laneName);
+  document.querySelector('#lanePositions').innerHTML=openMine.map(x=>{
+    const u=Number(x.unrealized_pnl_jpy)||0; const cls=u<0?'down':'up';
+    const pct=x.notional_jpy?(u/x.notional_jpy*100):null;
+    return `<tr><td><b>${esc(x.instrument)}</b></td><td>${dirJa(x.side)}</td>`+
+      `<td><div><b>${x.notional_jpy?yen.format(x.notional_jpy):'-'}</b></div><div style="font-size:11px;opacity:.7">${Number(x.units).toLocaleString()} 通貨</div></td>`+
+      `<td>${Number(x.open_price).toFixed(3)}</td><td>${x.cur_price==null?'-':Number(x.cur_price).toFixed(3)}</td>`+
+      `<td class="${cls}"><div>${pct==null?'-':(pct>=0?'+':'')+pct.toFixed(2)+'%'}</div><div style="font-size:11.5px;opacity:.75">${(u>=0?'+':'')+yen.format(u)}</div></td>`+
+      `<td>${time(x.open_time)}</td></tr>`;
+  }).join('')||`<tr><td colspan="7">現在保有中のポジションはありません。</td></tr>`;
+  const mine=(d.recent_trades||[]).filter(x=>x.strategy===laneName&&x.status==='closed');
+  document.querySelector('#laneTrades').innerHTML=mine.slice(0,50).map(x=>
+    `<tr><td><b>${esc(x.instrument)}</b></td><td>${dirJa(x.side)}</td><td>${time(x.open_time)}</td>`+
+    `<td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':(x.pnl_jpy>=0?'+':'')+yen.format(x.pnl_jpy)}</td>`+
+    `<td>${esc(x.exit_reason||'-')}</td><td>${time(x.close_time)}</td></tr>`
+  ).join('')||`<tr><td colspan="6">まだ約定履歴がありません。</td></tr>`;
+  // 日次損益(直近7日・日本時間): クローズ時刻のJST暦日で集計
+  const byday={};
+  for(const x of mine){
+    if(!x.close_time)continue;
+    const day=new Date(x.close_time).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
+    (byday[day]=byday[day]||{p:0,n:0}); byday[day].p+=Number(x.pnl_jpy)||0; byday[day].n++;
+  }
+  const days=Object.keys(byday).sort().reverse().slice(0,7);
+  document.querySelector('#laneDaily').innerHTML=days.map(day=>
+    `<tr><td>${day}</td><td class="${pnlClass(byday[day].p)}">${(byday[day].p>=0?'+':'')+yen.format(byday[day].p)}</td><td>${byday[day].n}</td></tr>`
+  ).join('')||'<tr><td colspan="3">データがありません。</td></tr>';
 }
 
 // アリーナ一覧(投資家リーダーボード)。名前クリックでメイン画面をその投資家に切替。

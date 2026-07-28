@@ -124,8 +124,16 @@ def _with_unrealized(open_trades: list[dict]) -> list[dict]:
     for t in open_trades:
         t = dict(t)
         cur = px.get(t["instrument"]) or 0.0
+        t["cur_price"] = cur or None
         t["unrealized_pnl_jpy"] = round(estimate_pnl_jpy(
             t["instrument"], t["side"], t["units"], float(t["open_price"]), cur, prices), 1) if cur else 0.0
+        # 円換算の名目金額(保有中ポジション表の「金額」列用)。quote=JPYはそのまま、
+        # quote=USDはUSD/JPYで換算。対象5ペアはこの2通りで全てカバーされる。
+        quote = t["instrument"].split("_", 1)[1]
+        notional = float(t["units"]) * float(t["open_price"])
+        if quote == "USD" and usdjpy:
+            notional *= usdjpy
+        t["notional_jpy"] = round(notional)
         out.append(t)
     return out
 
