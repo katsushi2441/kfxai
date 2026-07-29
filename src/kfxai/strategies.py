@@ -399,8 +399,9 @@ class Investor:
                 continue
             sig = sub.signal(instrument, candles, settings, now, already_open)
             if sig.action != "hold":
-                # model=投資家名(評価は投資家単位)。どのサブ由来かはreasonにだけ残す(表示用)
+                # model=投資家名(評価は投資家単位)。帰属はsub_strategyに記録(事後分析用)
                 return Signal(**{**sig.__dict__, "model": self.name,
+                                 "sub_strategy": sub.name,
                                  "reason": f"[{sub.name}] {sig.reason}"})
             last_hold = f"[{sub.name}] {sig.reason}"
         return _hold(instrument, self.name, last_hold)

@@ -58,6 +58,9 @@ class Signal:
     # 戦略が価格ベースのSL/TPを持つ場合(セッションブレイクアウト等)。Noneなら固定pips。
     stop_price: float | None = None
     take_price: float | None = None
+    # どのサブ戦略が出したシグナルか(投資家レーンは複数サブ戦略の合成のため、
+    # レーン名だけだと事後分析で帰属が分からない。2026-07-30追加)
+    sub_strategy: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

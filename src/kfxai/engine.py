@@ -431,6 +431,8 @@ class TradingEngine:
                         reference = str(self.db.open_paper_trade(
                             instrument, side, abs(signed_units), entry, stop, take,
                             strategy=strategy_name,
+                            # 単体戦略はレーン名=戦略名そのものを帰属として記録
+                            sub_strategy=signal.sub_strategy or strategy_name,
                         ))
                     else:
                         response = self.client.market_order(instrument, signed_units, stop, take)

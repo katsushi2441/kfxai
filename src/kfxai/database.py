@@ -100,6 +100,9 @@ class Database:
                 conn.execute(
                     "ALTER TABLE paper_trades ADD COLUMN strategy TEXT NOT NULL DEFAULT 'session'"
                 )
+            # サブ戦略帰属列(投資家レーンは合成戦略のため、どのサブが建てたか記録する)
+            if "sub_strategy" not in cols:
+                conn.execute("ALTER TABLE paper_trades ADD COLUMN sub_strategy TEXT")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -177,12 +180,14 @@ class Database:
     def open_paper_trade(
         self, instrument: str, side: str, units: int, price: float,
         stop_price: float, take_price: float, strategy: str = "session",
+        sub_strategy: str | None = None,
     ) -> int:
         with self.connect() as conn:
             cur = conn.execute(
                 "INSERT INTO paper_trades(instrument,side,units,open_time,open_price,stop_price,"
-                "take_price,strategy) VALUES(?,?,?,?,?,?,?,?)",
-                (instrument, side, units, utc_now_iso(), price, stop_price, take_price, strategy),
+                "take_price,strategy,sub_strategy) VALUES(?,?,?,?,?,?,?,?,?)",
+                (instrument, side, units, utc_now_iso(), price, stop_price, take_price, strategy,
+                 sub_strategy),
             )
             return int(cur.lastrowid)
 
