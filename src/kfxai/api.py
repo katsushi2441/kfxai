@@ -140,7 +140,15 @@ def _with_unrealized(open_trades: list[dict]) -> list[dict]:
 
 @app.get("/api/status")
 def status() -> dict[str, Any]:
-    trades = db.query("SELECT * FROM paper_trades ORDER BY id DESC LIMIT 100")
+    trades = db.query("SELECT * FROM paper_trades ORDER BY id DESC LIMIT 300")
+    # 日次損益はサーバ側で全件をJST暦日集計する(recent_tradesのLIMITから集計すると
+    # 多decision日が欠落し累計と矛盾する。2026-07-30修正)
+    daily = db.query(
+        "SELECT strategy, date(close_time,'+9 hours') AS date, "
+        "ROUND(SUM(pnl_jpy),1) AS abs_profit, COUNT(*) AS trade_count "
+        "FROM paper_trades WHERE status='closed' "
+        "AND date(close_time,'+9 hours') >= date('now','+9 hours','-9 days') "
+        "GROUP BY strategy, date ORDER BY date DESC")
     decisions = db.query("SELECT * FROM decisions ORDER BY id DESC LIMIT 100")
     cycles = db.query("SELECT * FROM cycles ORDER BY id DESC LIMIT 20")
     performance = dossier(db)
@@ -163,6 +171,7 @@ def status() -> dict[str, Any]:
         "strategy_performance": _agent_performance(),
         "open_trades": _with_unrealized([trade for trade in trades if trade["status"] == "open"]),
         "recent_trades": trades,
+        "daily": daily,
         "recent_decisions": decisions,
         "recent_cycles": cycles,
         "research": db.query("SELECT * FROM research ORDER BY id DESC LIMIT 20"),

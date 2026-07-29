@@ -472,16 +472,11 @@ function renderMain(d){
     `<td class="${pnlClass(x.pnl_jpy)}">${x.pnl_jpy==null?'-':(x.pnl_jpy>=0?'+':'')+yen.format(x.pnl_jpy)}</td>`+
     `<td>${esc(x.exit_reason||'-')}</td><td>${time(x.close_time)}</td></tr>`
   ).join('')||`<tr><td colspan="6">まだ約定履歴がありません。</td></tr>`;
-  // 日次損益(直近7日・日本時間): クローズ時刻のJST暦日で集計
-  const byday={};
-  for(const x of mine){
-    if(!x.close_time)continue;
-    const day=new Date(x.close_time).toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
-    (byday[day]=byday[day]||{p:0,n:0}); byday[day].p+=Number(x.pnl_jpy)||0; byday[day].n++;
-  }
-  const days=Object.keys(byday).sort().reverse().slice(0,7);
-  document.querySelector('#laneDaily').innerHTML=days.map(day=>
-    `<tr><td>${day}</td><td class="${pnlClass(byday[day].p)}">${(byday[day].p>=0?'+':'')+yen.format(byday[day].p)}</td><td>${byday[day].n}</td></tr>`
+  // 日次損益(直近7日・日本時間): サーバ側の全件JST集計(d.daily)を使う。
+  // recent_tradesのLIMIT内でクライアント集計すると多決済日が欠落して累計と矛盾する
+  const days=(d.daily||[]).filter(r=>r.strategy===laneName).slice(0,7);
+  document.querySelector('#laneDaily').innerHTML=days.map(r=>
+    `<tr><td>${r.date}</td><td class="${pnlClass(r.abs_profit)}">${(r.abs_profit>=0?'+':'')+yen.format(r.abs_profit)}</td><td>${r.trade_count}</td></tr>`
   ).join('')||'<tr><td colspan="3">データがありません。</td></tr>';
 }
 
