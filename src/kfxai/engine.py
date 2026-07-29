@@ -49,6 +49,30 @@ def estimate_pnl_jpy(
     return quote_pnl
 
 
+NOTIONAL_PCT_PER_SLOT = 20.0  # 統一サイズ仕様: 1枠の名目 ≤ 資金の20%(kfreqai先物=証拠金10%×2xと同率)
+
+
+def position_units(
+    instrument: str, price: Price, prices: dict[str, Price], budget_jpy: float,
+    max_units: int,
+) -> int:
+    """名目ベースの発注数量。1枠の名目円 = 予算×20% になるよう通貨ペアごとに算出。
+    円換算不能(USD_JPY欠落等)は旧来のmax_units(固定1000)にフォールバック。"""
+    if budget_jpy <= 0 or price is None:
+        return max_units
+    quote = instrument.split("_", 1)[1]
+    if quote == "JPY":
+        jpy_per_unit = price.mid
+    elif quote == "USD" and "USD_JPY" in prices:
+        jpy_per_unit = price.mid * prices["USD_JPY"].mid
+    else:
+        return max_units
+    if jpy_per_unit <= 0:
+        return max_units
+    units = int(budget_jpy * NOTIONAL_PCT_PER_SLOT / 100.0 / jpy_per_unit)
+    return max(1, min(units, max_units))
+
+
 class TradingEngine:
     def __init__(
         self,
@@ -390,7 +414,10 @@ class TradingEngine:
                 action = {"decision_id": decision_id, **signal.to_dict(), "gate": gate_reason}
                 if allowed and price:
                     side = "long" if signal.action == "buy" else "short"
-                    signed_units = self.settings.base_units if side == "long" else -self.settings.base_units
+                    units = position_units(instrument, price, prices,
+                                           self.settings.agent_budget_jpy,
+                                           self.settings.base_units)
+                    signed_units = units if side == "long" else -units
                     if signal.stop_price is not None and signal.take_price is not None:
                         # 戦略が価格ベースのSL/TPを指定(セッションブレイクアウト等)
                         stop, take = signal.stop_price, signal.take_price
