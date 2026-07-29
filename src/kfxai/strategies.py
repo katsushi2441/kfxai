@@ -345,6 +345,99 @@ class DualThrust:
         return _hold(instrument, self.name, "inside thrust bands")
 
 
+class HLTrendFX:
+    """kfreqaihl FXのEMAトレンド追随の移植(アリーナ検証用・2026-07-30)。
+
+    kfreqaihl(kurage-hl/strategy_core.py + hl_presets.FX_PRESET_PARAMS)と同一の
+    ルール・パラメータをOANDA M15→H1リサンプルで再現する:
+      エントリー: H1のEMA12/26クロス + RSI14フィルタ(ロング<60/ショート>40)
+      決済: SL-2.5% / ピークトレール(発動+1.5%・戻し30%) / RSI行き過ぎ(>82/<18)
+    kfreqaihlは固定TPを持たない(トレールで利を伸ばす)ため、take_priceは
+    +10%の保険上限のみ。トレール/RSI決済はcustom_exitフックで行う。"""
+    name = "hl_trend"
+    daily_limit = False
+    close_on_session_end = False
+    max_hold_minutes = None  # トレンド追随: 時間切れなし(トレールが降ろす)
+    EMA_FAST, EMA_SLOW, RSI_PERIOD = 12, 26, 14
+    RSI_ENTRY_MAX, RSI_EXIT_MIN = 60.0, 82.0
+    SL_PCT = 2.5
+    TP_CAP_PCT = 10.0
+    TRAIL_TRIGGER_PCT, TRAIL_GIVEBACK = 1.5, 0.30
+
+    @staticmethod
+    def _to_h1(candles: list[Candle]) -> list[Candle]:
+        """M15→H1リサンプル。作りかけの時間帯(4本未満の末尾)は落とす
+        (kfreqaihl同様「確定足」で判定するため)。"""
+        groups: dict[str, list[Candle]] = {}
+        for c in candles:
+            groups.setdefault(c.time[:13], []).append(c)
+        keys = sorted(groups)
+        if keys and len(groups[keys[-1]]) < 4:
+            keys = keys[:-1]
+        out = []
+        for k in keys:
+            g = groups[k]
+            out.append(Candle(
+                time=g[0].time, open=g[0].open, high=max(x.high for x in g),
+                low=min(x.low for x in g), close=g[-1].close,
+                volume=sum(x.volume for x in g), complete=True))
+        return out
+
+    def signal(self, instrument, candles, settings, now, already_open) -> Signal:
+        if already_open:
+            return _hold(instrument, self.name, "position already open")
+        h1 = self._to_h1(candles)
+        if len(h1) < self.EMA_SLOW + 2:
+            return _hold(instrument, self.name, "not enough H1 candles")
+        closes = [c.close for c in h1]
+        fast = _ema(closes, self.EMA_FAST)
+        slow = _ema(closes, self.EMA_SLOW)
+        cross_up = fast[-1] > slow[-1] and fast[-2] <= slow[-2]
+        cross_dn = fast[-1] < slow[-1] and fast[-2] >= slow[-2]
+        value = rsi(closes, self.RSI_PERIOD)
+        last = candles[-1].close
+        feats = {"rsi_h1": value, "ema_fast": fast[-1], "ema_slow": slow[-1]}
+        if cross_up and value < self.RSI_ENTRY_MAX:
+            return Signal(instrument=instrument, action="buy", probability_up=1.0, confidence=1.0,
+                          regime="arena", directive="neutral",
+                          reason=f"H1 EMA{self.EMA_FAST}/{self.EMA_SLOW} cross-up (RSI {value:.0f})",
+                          model=self.name, features=feats,
+                          stop_price=last * (1 - self.SL_PCT / 100),
+                          take_price=last * (1 + self.TP_CAP_PCT / 100))
+        if cross_dn and value > (100.0 - self.RSI_ENTRY_MAX):
+            return Signal(instrument=instrument, action="sell", probability_up=0.0, confidence=1.0,
+                          regime="arena", directive="neutral",
+                          reason=f"H1 EMA{self.EMA_FAST}/{self.EMA_SLOW} cross-down (RSI {value:.0f})",
+                          model=self.name, features=feats,
+                          stop_price=last * (1 + self.SL_PCT / 100),
+                          take_price=last * (1 - self.TP_CAP_PCT / 100))
+        return _hold(instrument, self.name, "no H1 EMA cross")
+
+    def custom_exit(self, trade, candles: list[Candle], current: float) -> str | None:
+        """kfreqaihlの決済則: ピークトレール + RSI行き過ぎ。該当なしはNone。"""
+        if not candles or not current:
+            return None
+        entry = float(trade["open_price"])
+        is_long = trade["side"] == "long"
+        since = [c for c in candles if c.time >= trade["open_time"]]
+        profit = (current - entry) / entry if is_long else (entry - current) / entry
+        if since:
+            peak_px = max(c.high for c in since) if is_long else min(c.low for c in since)
+            peak = (peak_px - entry) / entry if is_long else (entry - peak_px) / entry
+            peak = max(peak, profit)
+            trig = self.TRAIL_TRIGGER_PCT / 100
+            if peak >= trig and peak > 0 and (peak - profit) / peak >= self.TRAIL_GIVEBACK:
+                return "peak_trail"
+        h1 = self._to_h1(candles)
+        if len(h1) >= self.RSI_PERIOD + 1:
+            value = rsi([c.close for c in h1], self.RSI_PERIOD)
+            if is_long and value > self.RSI_EXIT_MIN:
+                return "rsi_exit"
+            if (not is_long) and value < (100.0 - self.RSI_EXIT_MIN):
+                return "rsi_exit"
+        return None
+
+
 REGISTRY = {
     "session": SessionBreakout,
     "donchian": DonchianBreakout,
@@ -352,6 +445,7 @@ REGISTRY = {
     "ma_cross": MaCross,
     "llm_analyst": LlmAnalyst,
     "dual_thrust": DualThrust,
+    "hl_trend": HLTrendFX,
 }
 
 
@@ -406,6 +500,16 @@ class Investor:
             last_hold = f"[{sub.name}] {sig.reason}"
         return _hold(instrument, self.name, last_hold)
 
+    def custom_exit(self, trade, candles, current) -> str | None:
+        """建てたサブ戦略(trade.sub_strategy)の決済則に委譲する。
+        フックを持つサブが無ければNone(エンジン既定のSL/TP等に任せる)。"""
+        for sub in self.subs:
+            if not hasattr(sub, "custom_exit"):
+                continue
+            if trade.get("sub_strategy") in (None, "", sub.name):
+                return sub.custom_exit(trade, candles, current)
+        return None
+
 
 # 投資家レーン。名前(A/B/…)に意味は無く、seedは進化の出発点にすぎない(固定しない)。
 # 良かったレーンは本番へ昇格し、そのレーンは停止(会計のみ)、空いた分は新レーンで次を試す。
@@ -417,6 +521,7 @@ INVESTOR_DEFS = [
     ("D", []),  # 旧rsi_meanrev。勝率50%/+1361円で本番昇格につき停止(2026-07-29)
     ("E", ["donchian"]),     # 別ブレイク(46%・+203円で継続)
     ("F", []),  # 旧ma_cross。勝率12%/-2630円で停止(2026-07-29)
+    ("G", ["hl_trend"]),  # kfreqaihl FXのEMAトレンド追随の移植検証(2026-07-30開始)
 ]
 _DEFAULT_ROSTER = [name for name, _ in INVESTOR_DEFS]
 

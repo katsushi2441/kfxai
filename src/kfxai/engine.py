@@ -212,7 +212,8 @@ class TradingEngine:
             )
             conn.execute("UPDATE paper_trades SET reviewed=1 WHERE id=?", (trade["id"],))
 
-    def _manage_paper_trades(self, prices: dict[str, Price]) -> list[dict[str, Any]]:
+    def _manage_paper_trades(self, prices: dict[str, Price],
+                             candle_map: dict[str, list] | None = None) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
         for trade in self.db.open_paper_trades():
             price = prices.get(trade["instrument"])
@@ -254,6 +255,14 @@ class TradingEngine:
                                 trade["open_price"], current, prices)
                             if upnl <= 0:
                                 reason = "stale_exit"
+                    # 戦略固有の決済則(トレール等)。SL/TP・時間切れに該当しない時だけ聞く
+                    if not reason and hasattr(strategy, "custom_exit"):
+                        try:
+                            reason = strategy.custom_exit(
+                                trade, (candle_map or {}).get(trade["instrument"]) or [],
+                                current) or ""
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"[engine] custom_exit failed: {exc}")
                 elif self.settings.strategy in ("session", "arena"):
                     # セッション戦略(単独モード) or アリーナのロースター外の遺物
                     if session_should_close(datetime.now(timezone.utc), self.settings):
@@ -309,7 +318,7 @@ class TradingEngine:
             self.db.set_state("directive", directive)
             self.db.set_state("backend", self.judgment.name)
 
-            paper_events = self._manage_paper_trades(prices) if self.settings.trading_mode == "paper" else []
+            paper_events = self._manage_paper_trades(prices, candle_map) if self.settings.trading_mode == "paper" else []
             if self.settings.trading_mode == "paper":
                 open_instruments = {trade["instrument"] for trade in self.db.open_paper_trades()}
             else:
