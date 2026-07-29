@@ -205,7 +205,7 @@ class Database:
 
     def today_pnl_jpy(self, strategy: str | None = None) -> float:
         sql = ("SELECT COALESCE(SUM(pnl_jpy),0) AS pnl FROM paper_trades "
-               "WHERE status='closed' AND date(close_time)=date('now')")
+               "WHERE status='closed' AND date(close_time,'+9 hours')=date('now','+9 hours')")
         params: tuple = ()
         if strategy is not None:
             sql += " AND strategy=?"

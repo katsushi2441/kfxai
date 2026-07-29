@@ -56,7 +56,7 @@ def _agent_performance() -> list[dict[str, Any]]:
         "SUM(CASE WHEN status='closed' AND pnl_jpy > 0 THEN 1 ELSE 0 END) AS wins, "
         "ROUND(SUM(CASE WHEN status='closed' THEN pnl_jpy ELSE 0 END), 0) AS pnl_jpy, "
         "SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS open_now, "
-        "ROUND(SUM(CASE WHEN status='closed' AND date(close_time)=date('now') "
+        "ROUND(SUM(CASE WHEN status='closed' AND date(close_time,'+9 hours')=date('now','+9 hours') "
         "THEN pnl_jpy ELSE 0 END), 0) AS today_pnl "
         "FROM paper_trades GROUP BY strategy ORDER BY pnl_jpy DESC"
     )
