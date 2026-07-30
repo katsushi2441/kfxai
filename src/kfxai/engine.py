@@ -237,15 +237,23 @@ class TradingEngine:
             if not reason:
                 strategy = self._arena_by_name.get(trade.get("strategy") or "")
                 if strategy is not None:
-                    # アリーナ: 各戦略の手仕舞いルール(時刻 or 保有時間上限)
-                    if strategy.close_on_session_end and session_should_close(
+                    # 手仕舞いルールは「その玉を建てたサブ戦略」のものを使う。レーン合成値
+                    # (any/all)を使うと、session戦略の門限が他サブの玉を4分で強制決済→
+                    # 即再エントリーの回転が起きる(2026-07-29に60回転/-364円の実害)。
+                    # 帰属なし(旧玉)はレーン合成値にフォールバック。
+                    rules = strategy
+                    if hasattr(strategy, "sub_by_name"):
+                        sub = strategy.sub_by_name(trade.get("sub_strategy") or "")
+                        if sub is not None:
+                            rules = sub
+                    if rules.close_on_session_end and session_should_close(
                             datetime.now(timezone.utc), self.settings):
                         reason = "session_close"
-                    elif strategy.max_hold_minutes is not None:
+                    elif rules.max_hold_minutes is not None:
                         held_min = (trade["bars_held"] + 1) * self.settings.cycle_seconds / 60
-                        if held_min >= strategy.max_hold_minutes:
+                        if held_min >= rules.max_hold_minutes:
                             reason = "max_hold"
-                        elif held_min >= strategy.max_hold_minutes * 0.5:
+                        elif held_min >= rules.max_hold_minutes * 0.5:
                             # 不発の早期撤退(2026-07-29): max_holdの半分を過ぎても含み益が
                             # 出ていない取引は「走らなかったブレイク」として畳む。
                             # max_hold満了組(全決済の25%・勝率39%・平均-7円)が勝率を希釈
@@ -377,6 +385,18 @@ class TradingEngine:
                         else:
                             signal = strat.signal(instrument, candle_map[instrument],
                                                   self.settings, now_utc, already)
+                            # 合成レーン: 日次制限はサブ戦略単位で判定する(レーン合成値
+                            # all(subs)ではsession/dual_thrustの「1日1取引」が消える)
+                            sub_name = getattr(signal, "sub_strategy", None)
+                            if (signal.action != "hold" and sub_name
+                                    and hasattr(strat, "sub_by_name")):
+                                sub = strat.sub_by_name(sub_name)
+                                if sub is not None and getattr(sub, "daily_limit", False):
+                                    dk = (f"session_traded:{instrument}" if sub_name == "session"
+                                          else f"traded:{sub_name}:{instrument}")
+                                    if self.db.get_state(dk) == today:
+                                        signal = Signal(**{**signal.__dict__, "action": "hold",
+                                                           "reason": f"[{sub_name}] already traded today"})
                         if signal.action != "hold" and directive.get("directive") == "risk_off":
                             signal = Signal(**{**signal.__dict__, "action": "hold",
                                                "reason": "risk directive blocks new exposure"})
@@ -454,6 +474,15 @@ class TradingEngine:
                         daily_key = (f"session_traded:{instrument}" if strategy_name == "session"
                                      else f"traded:{strategy_name}:{instrument}")
                         self.db.set_state(daily_key, today)
+                    # サブ戦略単位の日次制限キーも記録(合成レーンのsession/dual_thrust用)
+                    sub_name = signal.sub_strategy or ""
+                    sub_obj = (strat.sub_by_name(sub_name)
+                               if (strat is not None and hasattr(strat, "sub_by_name")) else None)
+                    if (sub_obj is not None and getattr(sub_obj, "daily_limit", False)
+                            and sub_name != strategy_name):
+                        dk = (f"session_traded:{instrument}" if sub_name == "session"
+                              else f"traded:{sub_name}:{instrument}")
+                        self.db.set_state(dk, today)
                     action.update({"executed": True, "reference": reference, "stop": stop, "take": take})
                     if strat is not None:
                         open_keys.add((strat.name, instrument))

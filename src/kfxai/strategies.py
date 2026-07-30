@@ -500,6 +500,14 @@ class Investor:
             last_hold = f"[{sub.name}] {sig.reason}"
         return _hold(instrument, self.name, last_hold)
 
+    def sub_by_name(self, name):
+        """帰属サブ戦略の解決。決済ルール(session_close/max_hold/日次制限)は
+        レーン合成値ではなく「その玉を建てたサブ」のものを使うために参照する。"""
+        for sub in self.subs:
+            if sub.name == name:
+                return sub
+        return None
+
     def custom_exit(self, trade, candles, current) -> str | None:
         """建てたサブ戦略(trade.sub_strategy)の決済則に委譲する。
         フックを持つサブが無ければNone(エンジン既定のSL/TP等に任せる)。"""
