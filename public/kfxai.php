@@ -473,11 +473,21 @@ function renderMain(d){
     `<td>${esc(x.exit_reason||'-')}</td><td>${time(x.close_time)}</td></tr>`
   ).join('')||`<tr><td colspan="6">まだ約定履歴がありません。</td></tr>`;
   // 日次損益(直近7日・日本時間): サーバ側の全件JST集計(d.daily)を使う。
-  // recent_tradesのLIMIT内でクライアント集計すると多決済日が欠落して累計と矛盾する
+  // recent_tradesのLIMIT内でクライアント集計すると多決済日が欠落して累計と矛盾する。
+  // 表示7日に入らない古い決済分は「それ以前」行に残余として出し、
+  // 表の合計が必ず累計損益カードと一致するようにする(3プロダクト共通ルール)
   const days=(d.daily||[]).filter(r=>r.strategy===laneName).slice(0,7);
-  document.querySelector('#laneDaily').innerHTML=days.map(r=>
-    `<tr><td>${r.date}</td><td class="${pnlClass(r.abs_profit)}">${(r.abs_profit>=0?'+':'')+yen.format(r.abs_profit)}</td><td>${r.trade_count}</td></tr>`
-  ).join('')||'<tr><td colspan="3">データがありません。</td></tr>';
+  const laneTotal=Number(row.pnl_jpy)||0;
+  const laneTrades=Number(row.trades)||0;
+  const shownPnl=days.reduce((a,r)=>a+(Number(r.abs_profit)||0),0);
+  const shownN=days.reduce((a,r)=>a+(Number(r.trade_count)||0),0);
+  const restPnl=laneTotal-shownPnl, restN=laneTrades-shownN;
+  const rows=days.map(r=>
+    `<tr><td>${r.date}</td><td class="${pnlClass(r.abs_profit)}">${(r.abs_profit>=0?'+':'')+yen.format(r.abs_profit)}</td><td>${r.trade_count}</td></tr>`);
+  if(restN>0||Math.abs(restPnl)>=1){
+    rows.push(`<tr style="opacity:.75"><td>それ以前</td><td class="${pnlClass(restPnl)}">${(restPnl>=0?'+':'')+yen.format(restPnl)}</td><td>${Math.max(restN,0)}</td></tr>`);
+  }
+  document.querySelector('#laneDaily').innerHTML=rows.join('')||'<tr><td colspan="3">データがありません。</td></tr>';
 }
 
 // アリーナ一覧(投資家リーダーボード)。名前クリックでメイン画面をその投資家に切替。
