@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import requests
@@ -25,23 +26,45 @@ class OandaClient:
             "Accept-Datetime-Format": "RFC3339",
         }
 
+    # 一過性の通信断・5xx・レート制限で1サイクル丸ごと落とさないための再試行。
+    # 恒久エラー(401/403/404など)は再試行せず即座に上げる。
+    _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+    _RETRY_ATTEMPTS = 3
+    _RETRY_WAIT_SECONDS = 1.5
+
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         self.settings.validate(require_credentials=True)
-        response = self.session.request(
-            method,
-            self.settings.api_base_url + path,
-            headers=self.headers,
-            timeout=kwargs.pop("timeout", 30),
-            **kwargs,
-        )
-        if not response.ok:
+        timeout = kwargs.pop("timeout", 30)
+        last_error: Exception | None = None
+        for attempt in range(1, self._RETRY_ATTEMPTS + 1):
+            try:
+                response = self.session.request(
+                    method,
+                    self.settings.api_base_url + path,
+                    headers=self.headers,
+                    timeout=timeout,
+                    **kwargs,
+                )
+            except requests.RequestException as exc:  # 接続断・タイムアウト
+                last_error = OandaError(f"OANDA request failed: {exc}")
+                if attempt < self._RETRY_ATTEMPTS:
+                    time.sleep(self._RETRY_WAIT_SECONDS * attempt)
+                    continue
+                raise last_error from exc
+            if response.ok:
+                return response.json()
             request_id = response.headers.get("RequestID", "")
             try:
                 detail = response.json()
             except ValueError:
                 detail = response.text[:500]
-            raise OandaError(f"OANDA {response.status_code} request_id={request_id}: {detail}")
-        return response.json()
+            last_error = OandaError(
+                f"OANDA {response.status_code} request_id={request_id}: {detail}")
+            if response.status_code in self._RETRY_STATUSES and attempt < self._RETRY_ATTEMPTS:
+                time.sleep(self._RETRY_WAIT_SECONDS * attempt)
+                continue
+            raise last_error
+        raise last_error if last_error else OandaError("OANDA request failed")
 
     def candles(self, instrument: str, granularity: str = "M15", count: int = 240) -> list[Candle]:
         data = self._request(

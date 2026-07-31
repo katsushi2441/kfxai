@@ -507,6 +507,10 @@ class TradingEngine:
                 "errors": errors,
             }
             self.db.set_state("last_cycle", summary)
+            # サイクルが通ったら過去の一過性エラーを消す。消さないと復旧後も
+            # 画面に古いlast_errorが出続け、現在の障害と誤認される
+            if self.db.get_state("last_error", None):
+                self.db.set_state("last_error", {})
             self.db.finish_cycle(cycle_id, "done", json.dumps({"errors": errors}, ensure_ascii=False))
             return summary
         except Exception as exc:
