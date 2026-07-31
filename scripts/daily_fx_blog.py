@@ -2,7 +2,7 @@
 """FXデイリーブログ(kfxbrain判断)を Kurageブログ(Bludit)へ1日1回投稿する。
 
 kfxai経由でOANDAの主要FXペアの実データ(価格/騰落/テクニカル)を集め、
-kfxbrain(Kurage FX Brain, :18326)の /v1/market/opportunity-ranking に投げて
+Kurage FX Brain の market/opportunity-ranking (Bankr x402の有料API)に投げて
 日本語の機会ランキングを得て、読みやすい記事に整形。カテゴリ/タグ kfxbrain・FX で投稿。
 末尾に KAIC(kaic.php)への誘導を付ける。暗号資産版(daily_crypto_blog.py)と対。
 
@@ -18,13 +18,13 @@ import json
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from kfxai import x402_pay
 from kfxai.config import load_settings  # noqa: E402
 from kfxai.oanda import OandaClient  # noqa: E402
 
 JST = timezone(timedelta(hours=9))
 PAIRS = ["USD_JPY", "EUR_USD", "GBP_JPY", "EUR_JPY", "GBP_USD", "AUD_USD"]
-KFXBRAIN_URL = os.environ.get("KFXBRAIN_URL", "http://127.0.0.1:18326")
-KFXBRAIN_ENV = "/home/kojima/work/kfxbrain/.env"
+
 
 CATEGORY = "kfxbrain"
 TAGS = "kfxbrain,FX,AI判断"
@@ -46,17 +46,6 @@ DISCLOSURE = (
 DIR_JP = {"base_currency": "強気(基軸通貨買い)", "quote_currency": "弱気(基軸通貨売り)",
           "long": "強気(ロング候補)", "short": "弱気(ショート候補)",
           "watch": "様子見", "avoid": "回避"}
-
-
-def _kfxbrain_token() -> str:
-    t = os.environ.get("KFXBRAIN_API_TOKEN")
-    if t:
-        return t
-    with open(KFXBRAIN_ENV, encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("KFXBRAIN_API_TOKEN="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
-    raise RuntimeError("KFXBRAIN_API_TOKEN not found")
 
 
 def gather_evidence() -> list[dict]:
@@ -105,12 +94,9 @@ def call_kfxbrain(pairs: list[dict]) -> dict:
                     "1ペアあたり2項目以内の簡潔な日本語で書いてください。"
                     "JSON構造・キー名・symbol(pair)・direction は英語のまま。",
     }, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        f"{KFXBRAIN_URL}/v1/market/opportunity-ranking", data=body,
-        headers={"Content-Type": "application/json", "X-KFXBRAIN-Token": _kfxbrain_token()},
-        method="POST")
-    with urllib.request.urlopen(req, timeout=180) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    # 有料API: Bankr x402で自動支払い(KURAGE_X402_WALLET_KEYのウォレットから)
+    return x402_pay.pay_and_call("fxbrain", "/market/opportunity-ranking",
+                                 json.loads(body.decode("utf-8")), timeout=300)
 
 
 def build_article(result: dict) -> tuple[str, str, str]:

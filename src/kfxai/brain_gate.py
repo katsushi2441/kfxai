@@ -1,4 +1,4 @@
-"""kfxbrain(:18326) によるエントリー選別ゲート(kfreqaihlのhl_brain_clientと同型)。
+"""Kurage FX Brain(Bankr x402の有料API)によるエントリー選別ゲート。
 
 kfreqai/kfreqaihlが持つ「AIによるエントリー選別」がkfxaiには無く、ルールの
 ブレイクアウト条件だけで entry していたのが勝率低下の一因(2026-07-29分析)。
@@ -7,33 +7,18 @@ kfreqaihlと同じ設計で組み込む:
     kfxbrainの opportunity-ranking に渡し、ペアごとの可否ゲートを作る
   - veto("avoid") または シグナルと逆方向の判断 ならエントリー見送り
   - ゲート取得失敗・タイムアウト・ペア情報なしは fail-open(通す)=障害を機会損失にしない
-  - 自分のbotなのでproviderヘッダ無し=ローカルgemma(無料)。tokenはkfxbrain/.envから読む
+  - 判断APIはKurageの有料サービス。**Bankr x402(fxbrain)経由で呼び出しごとに自動支払い**する
+    (KURAGE_X402_WALLET_KEY のウォレットにBase USDCが必要)。無料の直叩き経路は持たない
 """
 from __future__ import annotations
 
 import json
 import os
-import urllib.request
 
-KFXBRAIN_URL = os.environ.get("KFXBRAIN_URL", "http://127.0.0.1:18326").rstrip("/")
-KFXBRAIN_ENV = os.environ.get("KFXBRAIN_ENV_PATH", "/home/kojima/work/kfxbrain/.env")
-GATE_TIMEOUT = int(os.environ.get("KFXAI_BRAIN_GATE_TIMEOUT", "120"))
+from . import x402_pay
+
+GATE_TIMEOUT = int(os.environ.get("KFXAI_BRAIN_GATE_TIMEOUT", "300"))
 _AVOID = {"avoid"}
-
-
-def _token() -> str:
-    tok = os.environ.get("KFXBRAIN_API_TOKEN", "").strip()
-    if tok:
-        return tok
-    try:
-        with open(KFXBRAIN_ENV, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line.startswith("KFXBRAIN_API_TOKEN="):
-                    return line.split("=", 1)[1].strip()
-    except OSError:
-        pass
-    return ""
 
 
 def _ema(values: list[float], period: int) -> float:
@@ -84,13 +69,9 @@ def market_gate(pairs_evidence: list[dict]) -> dict:
     返り値: {"USD_JPY": {"direction": ..., "veto": bool, "why": str}, ...}。
     失敗時は例外(呼び出し側でfail-open)。"""
     payload = {"timeframe": "M15", "pairs": pairs_evidence[:10]}
-    req = urllib.request.Request(
-        KFXBRAIN_URL + "/v1/market/opportunity-ranking",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", "X-KFXBrain-Token": _token()},
-        method="POST")
-    with urllib.request.urlopen(req, timeout=GATE_TIMEOUT) as resp:
-        rank = json.loads(resp.read().decode("utf-8"))
+    # Kurage FX Brain は有料API: Bankr x402で呼び出しごとに自動支払い
+    rank = x402_pay.pay_and_call("fxbrain", "/market/opportunity-ranking",
+                                 payload, timeout=GATE_TIMEOUT)
     gate: dict = {}
     for r in ((rank.get("result") or {}).get("ranking") or []):
         if not isinstance(r, dict):

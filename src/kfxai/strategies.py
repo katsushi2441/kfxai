@@ -24,6 +24,7 @@ from datetime import datetime
 
 import requests
 
+from . import x402_pay
 from .config import Settings
 from .models import Candle, Signal
 from .indicators import rsi
@@ -182,8 +183,9 @@ class MaCross:
 
 class LlmAnalyst:
     """LLMアナリスト戦略: kfxbrain(vendored TradingAgents/FinGPT系のGemma 4判断API)の
-    /v1/decide/trade にテクニカル要約を渡し、BUY/SELL/HOLDに従う。
-    判断は1銘柄1時間キャッシュ(GPUを叩きすぎない)。tokenが無ければ自動無効。"""
+    Bankr x402の有料API(fxbrain /decide/trade)にテクニカル要約を渡し、BUY/SELL/HOLDに従う。
+    判断は1銘柄1時間キャッシュ(呼び出し=支払いなので無駄打ちしない)。
+    支払いウォレット(KURAGE_X402_WALLET_KEY)が無ければ自動無効。"""
     name = "llm_analyst"
     daily_limit = False
     close_on_session_end = False
@@ -192,23 +194,11 @@ class LlmAnalyst:
     CACHE_SECONDS = 3600
 
     def __init__(self) -> None:
-        self.base = os.environ.get("KFXAI_KFXBRAIN_URL", "http://127.0.0.1:18326").rstrip("/")
-        self.token = os.environ.get("KFXAI_KFXBRAIN_TOKEN", "").strip() or self._token_from_file()
         self._cache: dict[str, tuple[float, dict]] = {}
 
-    @staticmethod
-    def _token_from_file() -> str:
-        # 同居デプロイの既定: kfxbrain/.env からトークンを読む(無ければ無効化)
-        try:
-            for line in open("/home/kojima/work/kfxbrain/.env", encoding="utf-8"):
-                if line.startswith("KFXBRAIN_API_TOKEN="):
-                    return line.split("=", 1)[1].strip()
-        except OSError:
-            pass
-        return ""
-
     def available(self) -> bool:
-        return bool(self.token)
+        # 支払いウォレットが設定されているときだけ有効(無料経路は無い)
+        return bool(os.environ.get("KURAGE_X402_WALLET_KEY", "").strip())
 
     def _judge(self, instrument: str, candles: list[Candle]) -> dict:
         cached = self._cache.get(instrument)
@@ -228,13 +218,9 @@ class LlmAnalyst:
             },
             "question": "Short-term (intraday) direction for a small paper trade. Answer buy, sell, or hold.",
         }
-        r = requests.post(
-            f"{self.base}/v1/decide/trade",
-            headers={"X-KFXBRAIN-Token": self.token, "Content-Type": "application/json"},
-            data=json.dumps(payload), timeout=180,
-        )
-        r.raise_for_status()
-        result = r.json().get("result", {})
+        # 有料API: Bankr x402で呼び出しごとに自動支払い
+        response = x402_pay.pay_and_call("fxbrain", "/decide/trade", payload, timeout=300)
+        result = response.get("result", {}) if isinstance(response, dict) else {}
         self._cache[instrument] = (_time.time(), result)
         return result
 
@@ -242,7 +228,7 @@ class LlmAnalyst:
         if already_open:
             return _hold(instrument, self.name, "position already open")
         if not self.available():
-            return _hold(instrument, self.name, "kfxbrain token unavailable")
+            return _hold(instrument, self.name, "x402 payment wallet not configured")
         try:
             result = self._judge(instrument, candles)
         except Exception as exc:
