@@ -64,9 +64,11 @@ if ($kfxai_agent !== '') { $kfxai_view = 'agent'; }
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kurage FX AI Trade | OANDA FX運用ダッシュボード</title>
-<meta name="description" content="OANDAの市場データを使うKurage FX AI Tradeの稼働状況、AI判断、paper取引成績を表示します。">
-<meta name="robots" content="noindex,nofollow">
+<title>Kurage FX AI Trade — バイブトレーディングの稼働ダッシュボード｜FX AI自動売買</title>
+<meta name="description" content="戦略を日本語でAIに相談しバックテストで検証しながら育てる「バイブトレーディング」を、FXで動かしている稼働ダッシュボード。OANDAの市場データを使うKurage FX AI Tradeの稼働状況、AI判断、ペーパー取引成績を公開しています（実資金は動かしていません）。">
+<meta name="keywords" content="バイブトレーディング,バイブコーディング,FX 自動売買,AI自動売買,FX AI,セッションブレイクアウト,バックテスト,kfxai,Kurage">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://kurage.exbridge.jp/kfxai.php">
 <meta property="og:title" content="Kurage FX AI Trade">
 <meta property="og:description" content="AI判断と固定リスク制御を分離したOANDA FX運用システム。">
 <meta property="og:type" content="website">
@@ -198,6 +200,41 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
     document.head.appendChild(s);
 })();
 </script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "DefinedTerm",
+      "@id": "https://kurage.exbridge.jp/kfxai.php#vibe-trading",
+      "name": "バイブトレーディング",
+      "alternateName": ["Vibe Trading"],
+      "description": "取引戦略のアイデアを日本語でAIに伝えてコードに落とし、バックテストの数字で検証しながら戦略を育てていく運用スタイル。コードをAIに書かせる「バイブコーディング」をトレードに応用した言葉。"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "バイブトレーディングとは何ですか？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "取引戦略のアイデアを日本語でAIに伝えてコードに落とし、バックテストの数字で検証しながら戦略を育てていく運用スタイルです。仮説を出すのは人間、コードにするのはAI、正しいかを決めるのはバックテストの数字、という分業が特徴です。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "このダッシュボードでは何が見られますか？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "バイブトレーディングで作ったFX戦略が実際に動いている様子です。方向予測は約1万取引の検証で棄却し、1.6年の検証を生き残ったセッションブレイクアウト戦略だけを稼働させています。ペーパートレードのみで実際の資金は動いていません。"
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
   <header>
@@ -215,6 +252,10 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
     </div>
   </header>
   <main>
+    <p style="font-size:13px;line-height:1.8;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+      戦略のアイデアを日本語でAIに伝え、バックテストの数字で検証しながら育てる運用スタイルを<strong>バイブトレーディング</strong>と呼んでいます。このページは、そのバイブトレーディングで作ったFX戦略を動かしている稼働ダッシュボードです（ペーパートレード／実資金は動かしていません）。
+      仕組みの解説は<a href="https://kfxai.exbridge.jp/kfxai.html#vibe-trading">kfxai公式サイト</a>、始め方は<a href="https://katsushi2441.github.io/vwork/blog/2026-07-31-vibe-trading-tools-guide.html">バイブトレーディング実践ガイド</a>、暗号資産版は<a href="https://kurage.exbridge.jp/kfreqai.php">kfreqai</a>にあります。
+    </p>
     <div class="error" id="errorBox"></div>
 
     <!-- タブは本番/アリーナの2つ(kfreqaiと同じ)。実リンクでURL遷移するのでJSに依存せず必ず選べる。
