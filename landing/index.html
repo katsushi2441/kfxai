@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kurage FX AI Trade — An FX bot that killed its own prediction model, in public</title>
-<meta name="description" content="kfxai is an FX paper-trading bot run by Kurage, an AI VTuber. We measured direction prediction across ~10,000 trades, proved it had no edge, threw it away — and trade the session-breakout strategy that survived 1.6 years of walk-forward testing.">
+<title>Kurage FX AI Trade — Vibe trading for FX: only strategies that survive the data</title>
+<meta name="description" content="kfxai applies vibe trading to FX — describe a strategy to an AI in plain language, then let backtests decide. We measured direction prediction across ~10,000 trades, proved it had no edge, threw it away, and trade only the session-breakout strategy that survived 1.6 years of walk-forward testing.">
+<meta name="keywords" content="vibe trading,vibe coding,FX trading bot,AI trading,algorithmic trading,session breakout,walk-forward,backtesting,kfxai,Kurage">
 <link rel="canonical" href="https://kfxai.exbridge.jp/">
 <link rel="alternate" hreflang="ja" href="https://kfxai.exbridge.jp/kfxai.html">
 <meta property="og:title" content="Kurage FX AI Trade — FX paper trading, measured in public">
@@ -15,6 +16,62 @@
 <meta property="og:image" content="https://kfxai.exbridge.jp/assets/ogp.png">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://kfxai.exbridge.jp/assets/ogp.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "DefinedTerm",
+      "@id": "https://kfxai.exbridge.jp/#vibe-trading",
+      "name": "Vibe trading",
+      "alternateName": ["バイブトレーディング"],
+      "inDefinedTermSet": "https://kfxai.exbridge.jp/",
+      "description": "Describing a trading strategy to an AI in plain language, letting it write the code, and growing the strategy by judging it on backtest numbers. It applies the idea of vibe coding to building and running trading strategies."
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Kurage FX AI Trade (kfxai)",
+      "url": "https://kfxai.exbridge.jp/",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "en",
+      "description": "Vibe trading applied to FX: direction prediction was rejected after ~10,000 trades of walk-forward testing, and only the surviving session-breakout strategy is traded.",
+      "keywords": "vibe trading, FX trading bot, AI trading, backtesting",
+      "codeRepository": "https://github.com/katsushi2441/kfxai",
+      "publisher": { "@type": "Organization", "name": "EXBRIDGE, Inc.", "url": "https://exbridge.jp/" }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is vibe trading?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Vibe trading means describing a trading strategy to an AI in plain language, letting the AI write the code, and deciding whether to keep it based on backtest numbers. Humans supply the hypothesis, the AI supplies the code, and the data decides — the trading counterpart of vibe coding."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What matters most when vibe trading FX?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Letting the numbers, not the AI, decide. kfxai put its direction-prediction model through walk-forward testing over roughly 10,000 trades and discarded it once the data showed no edge. Throwing away a confident-sounding proposal that fails validation is the core discipline of vibe trading."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is real money at risk?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. kfxai paper-trades against live prices from an OANDA demo environment; no real funds move. This site is not investment advice and implies no endorsement by OANDA."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <style>
 :root {
   --ink: #1a2c4d; --muted: #67799a; --sea: #6b9ae8; --line: #d4e0f6;
@@ -165,6 +222,34 @@ footer a { color: var(--accent); font-weight: 700; }
   FX involves leverage and losses can exceed deposits. Not affiliated with or endorsed by OANDA.
   Nothing on this site is financial advice.</div>
 </div>
+
+<section id="vibe-trading">
+  <h2>What is vibe trading? — Growing an FX strategy by talking to an AI</h2>
+  <p class="sub">Writing code by talking to an AI is called <em>vibe coding</em>. In the same spirit, <strong>describing a trading idea in plain language, letting the AI turn it into code, and growing the strategy by judging it on backtest numbers</strong> is what we call <strong>vibe trading</strong>. kfxai is that process applied to FX — including the parts that failed.</p>
+  <div class="grid">
+    <div class="card">
+      <h3>Ask for a strategy in plain language</h3>
+      <p>“Write a breakout strategy that goes long when the Tokyo-session range breaks, stop at half the range width.” That one sentence to Codex or Claude Code produces working strategy code. <strong>No programming required to start.</strong></p>
+    </div>
+    <div class="card">
+      <h3>The data decides, not the AI</h3>
+      <p>The discipline that makes vibe trading work is refusing to trust the model. We ran direction prediction through walk-forward testing over ~10,000 trades and <strong>discarded it once the data showed no edge</strong>.</p>
+    </div>
+    <div class="card">
+      <h3>Only survivors go live</h3>
+      <p>Session breakout stayed profitable across every parameter set over 1.6 years, so that is the only thing we trade. <strong>Nothing reaches production without surviving validation.</strong></p>
+    </div>
+    <div class="card">
+      <h3>The rejections are public too</h3>
+      <p>The backtest harness ships in the repo, so you can see what was tried and what failed. <strong>The record of failures</strong> is what fuels the next hypothesis.</p>
+    </div>
+  </div>
+  <div class="links">
+    <a class="btn btn-primary" href="https://katsushi2441.github.io/vwork/blog/2026-07-31-vibe-trading-tools-guide.html">Vibe trading toolkit guide</a>
+    <a class="btn btn-ghost" href="https://kfreqai.exbridge.jp/">Try it on crypto (kfreqai)</a>
+    <a class="btn btn-ghost" href="https://github.com/katsushi2441/kfxai">GitHub</a>
+  </div>
+</section>
 
 <section>
   <h2>Built in the honest order</h2>

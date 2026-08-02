@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kurage FX AI Trade — 自分の予測モデルをデータで棄却したFXボット、全過程公開</title>
-<meta name="description" content="kfxaiはAI VTuber Kurageが運用するFXペーパートレードボット。約1万取引のwalk-forward検証で方向予測に優位性なしと確定して捨て、1.6年の検証を生き残ったセッションブレイクアウト戦略だけで取引します。">
+<title>Kurage FX AI Trade — バイブトレーディングで作るFX自動売買｜検証に生き残った戦略だけ</title>
+<meta name="description" content="kfxaiは、戦略を日本語でAIに相談しバックテストで検証しながら育てる「バイブトレーディング」をFXで実践する自動売買ボット。約1万取引のwalk-forward検証で方向予測を棄却し、1.6年の検証を生き残ったセッションブレイクアウト戦略だけで取引します。">
+<meta name="keywords" content="バイブトレーディング,バイブコーディング,FX 自動売買,AI自動売買,FX AI,セッションブレイクアウト,バックテスト,walk-forward,kfxai,Kurage">
 <link rel="canonical" href="https://kfxai.exbridge.jp/kfxai.html">
 <link rel="alternate" hreflang="en" href="https://kfxai.exbridge.jp/">
 <meta property="og:title" content="Kurage FX AI Trade — 測ってから取引するFXボット">
@@ -15,6 +16,62 @@
 <meta property="og:image" content="https://kfxai.exbridge.jp/assets/ogp.png">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://kfxai.exbridge.jp/assets/ogp.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "DefinedTerm",
+      "@id": "https://kfxai.exbridge.jp/kfxai.html#vibe-trading",
+      "name": "バイブトレーディング",
+      "alternateName": ["Vibe Trading", "バイブトレード"],
+      "inDefinedTermSet": "https://kfxai.exbridge.jp/kfxai.html",
+      "description": "取引戦略のアイデアを日本語でAIに伝えてコードに落とし、バックテストの数字で検証しながら戦略を育てていく運用スタイル。コードをAIに書かせる開発スタイル「バイブコーディング」を、トレード戦略の開発・運用に応用した言葉。"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Kurage FX AI Trade (kfxai)",
+      "url": "https://kfxai.exbridge.jp/kfxai.html",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "ja",
+      "description": "バイブトレーディングをFXで実践する自動売買ボット。方向予測は約1万取引の検証で棄却し、1.6年の検証を生き残ったセッションブレイクアウト戦略だけで取引する。",
+      "keywords": "バイブトレーディング, FX 自動売買, AI自動売買, バックテスト",
+      "codeRepository": "https://github.com/katsushi2441/kfxai",
+      "publisher": { "@type": "Organization", "name": "株式会社エクスブリッジ", "url": "https://exbridge.jp/" }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "バイブトレーディングとは何ですか？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "取引戦略のアイデアを日本語でAIに伝えてコードに落とし、バックテストの数字で検証しながら戦略を育てていく運用スタイルです。コードをAIに書かせる開発スタイル「バイブコーディング」をトレードに応用した言葉で、仮説を出すのは人間、コードにするのはAI、正しいかを決めるのはバックテストの数字、という分業が特徴です。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "バイブトレーディングをFXで行うときの注意点は？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "AIが出した戦略を採用するかどうかを、必ず数字で決めることです。kfxaiでは方向予測モデルを約1万取引のwalk-forward検証にかけ、優位性がないと分かった時点で棄却しました。AIが自信ありげに提案しても、検証を通らなければ捨てる——これがバイブトレーディングで最も重要な作法です。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "kfxaiは実際の資金で取引していますか？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "いいえ。OANDAデモ環境の実勢価格に対するペーパートレード(仮想取引)のみで、実際の資金は動いていません。本サイトの内容は投資助言ではありません。"
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <style>
 :root {
   --ink: #1a2c4d; --muted: #67799a; --sea: #6b9ae8; --line: #d4e0f6;
@@ -163,6 +220,34 @@ footer a { color: var(--accent); font-weight: 700; }
   FXはレバレッジにより元本を超える損失が発生する可能性があります。OANDA各社による承認・提携を示すものではありません。
   本サイトの内容は投資助言ではありません。</div>
 </div>
+
+<section id="vibe-trading">
+  <h2>バイブトレーディングとは — AIと対話しながら育てるFX自動売買</h2>
+  <p class="sub">コードをAIに書かせる開発スタイルを「バイブコーディング」と呼びます。同じように、<strong>取引戦略のアイデアを日本語でAIに伝え、バックテストで検証しながら戦略を育てる運用スタイル</strong>を、私たちは<strong>バイブトレーディング</strong>と呼んでいます。kfxaiは、それをFXで実践した記録です。</p>
+  <div class="grid">
+    <div class="card">
+      <h3>日本語で戦略を相談する</h3>
+      <p>「東京時間のレンジをブレイクしたら順張りで入る戦略を書いて。損切りはレンジ幅の半分で」——CodexやClaude Codeにこう伝えるだけで戦略コードが出てきます。<strong>プログラミングができなくても</strong>始められます。</p>
+    </div>
+    <div class="card">
+      <h3>採否を決めるのはAIではなく数字</h3>
+      <p>バイブトレーディングで最も重要なのは、AIの提案を鵜呑みにしないこと。kfxaiは方向予測モデルを約1万取引のwalk-forward検証にかけ、<strong>優位性なしと分かった時点で棄却</strong>しました。自信ありげな提案ほど数字で確かめます。</p>
+    </div>
+    <div class="card">
+      <h3>生き残った戦略だけを走らせる</h3>
+      <p>1.6年の検証を全パラメータで黒字通過したセッションブレイクアウトだけを採用。<strong>検証を通ったものしか本番に出さない</strong>——これがバイブトレーディングを運用に耐えるものにする条件です。</p>
+    </div>
+    <div class="card">
+      <h3>棄却の過程も公開する</h3>
+      <p>何を試して何がダメだったかまで、バックテスト基盤ごとリポジトリで公開しています。<strong>失敗の記録こそ</strong>、次の仮説を出すための材料になります。</p>
+    </div>
+  </div>
+  <div class="links">
+    <a class="btn btn-primary" href="https://katsushi2441.github.io/vwork/blog/2026-07-31-vibe-trading-tools-guide.html">バイブトレーディング実践ガイド（ツール総まとめ）</a>
+    <a class="btn btn-ghost" href="https://kfreqai.exbridge.jp/kfreqai.html">暗号資産で実践する（kfreqai）</a>
+    <a class="btn btn-ghost" href="https://katsushi2441.github.io/vwork/blog/2026-07-29-vibeaitrade-book-amazon.html">書籍で学ぶ</a>
+  </div>
+</section>
 
 <section>
   <h2>正直な順序で作る</h2>
