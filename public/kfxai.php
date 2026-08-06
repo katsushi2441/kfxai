@@ -194,7 +194,7 @@ let LAST=null, VIEW=<?php echo json_encode($kfxai_view); ?>, AGENT=<?php echo js
 <script>
 (function () {
     var s = document.createElement('script');
-    s.src = 'https://aiknowledgecms.exbridge.jp/simpletrack.php'
+    s.src = 'https://kurage.exbridge.jp/simpletrack.php'
         + '?url=' + encodeURIComponent(location.href)
         + '&ref=' + encodeURIComponent(document.referrer);
     document.head.appendChild(s);
